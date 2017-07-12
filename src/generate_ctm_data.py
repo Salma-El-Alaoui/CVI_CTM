@@ -32,6 +32,5 @@ class ToyDataset:
                 for n in range(self.N)]
                 for d in range(self.D)])
 
-
 if __name__ == "__main__":
     data = ToyDataset()
