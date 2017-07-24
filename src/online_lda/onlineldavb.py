@@ -110,7 +110,8 @@ class OnlineLDA:
         self._vocab = dict()
         for word in vocab:
             word = word.lower()
-            word = re.sub(r'[^a-z]', '', word)
+            if not word.isdigit():
+                 word = re.sub(r'[^a-z]', '', word)
             self._vocab[word] = len(self._vocab)
 
         self._K = K
@@ -459,8 +460,7 @@ def main():
     docs.read_data(infile)
 
     vocab = open(sys.argv[7]).readlines()
-    model = OnlineLDA(vocab, K, 100000,
-                      0.1, 0.01, 1, 0.75)
+    model = OnlineLDA(vocab, K, 100000, 0.1, 0.01, 1, 0.75)
     for i in range(1000):
         print(i)
         wordids = [d.words for d in docs.docs[(i*S):((i+1)*S)]]
