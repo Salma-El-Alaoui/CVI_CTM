@@ -31,8 +31,7 @@ from sklearn.decomposition._online_lda import (mean_change, _dirichlet_expectati
 
 EPS = np.finfo(np.float).eps
 
-
-def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior,
+def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior, doc_topic_prior_gauss,
                              max_iters,
                              mean_change_tol, cal_sstats, random_state):
     """E-step: update document-topic distribution.
@@ -74,11 +73,19 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior,
     else:
         doc_topic_distr = np.ones((n_samples, n_topics))
 
+
     # In the literature, this is `exp(E[log(theta)])`
+    # TODO: change this for CTM.
     exp_doc_topic = np.exp(_dirichlet_expectation_2d(doc_topic_distr))
 
     # diff on `component_` (only calculate it when `cal_diff` is True)
     suff_stats = np.zeros(exp_topic_word_distr.shape) if cal_sstats else None
+    
+    weight = 1 
+    
+    # component coming from the prior in computation of lambda
+    sigma_inv = np.linalg.pinv((doc_topic_prior_gauss)[1])
+    prior_comp = sigma_inv.dot((doc_topic_prior_gauss)[0]), -0.5 * sigma_inv
 
     if is_sparse_x:
         X_data = X.data
@@ -118,9 +125,12 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior,
 
         # Contribution of document d to the expected sufficient
         # statistics for the M step.
+        # sstats[k, w] = \sum_d n_{dw} * phi_{dwk} 
+        # = \sum_d n_{dw} / phinorm_{dw} * (exp{Elogtheta_{dk} + Elogbeta_{kw}}).
         if cal_sstats:
             norm_phi = np.dot(exp_doc_topic_d, exp_topic_word_d) + EPS
-            suff_stats[:, ids] += np.outer(exp_doc_topic_d, cnts / norm_phi)
+            suff_stats[:, ids] += np.outer(exp_doc_topic_d, cnts / norm_phi) * exp_topic_word_distr[:, ids]
+            
 
     return (doc_topic_distr, suff_stats)
 
@@ -213,7 +223,7 @@ class CVI(BaseEstimator, TransformerMixin):
     """
 
     def __init__(self, n_topics=10, doc_topic_prior=None,
-                 topic_word_prior=None, learning_method=None,
+                 topic_word_prior=None, doc_topic_prior_gauss=None, learning_method=None,
                  learning_decay=.7, learning_offset=10., max_iter=10,
                  batch_size=128, evaluate_every=-1, total_samples=1e6,
                  perp_tol=1e-1, mean_change_tol=1e-3, max_doc_update_iter=100,
@@ -234,6 +244,7 @@ class CVI(BaseEstimator, TransformerMixin):
         self.n_jobs = n_jobs
         self.verbose = verbose
         self.random_state = random_state
+        self.doc_topic_prior_gauss = doc_topic_prior_gauss
 
     def _check_params(self):
         """Check model parameters."""
@@ -254,9 +265,9 @@ class CVI(BaseEstimator, TransformerMixin):
             raise ValueError("Invalid 'learning_method' parameter: %r"
                              % self.learning_method)
 
-    def _init_latent_vars(self, n_features):
+    def _init_latent_vars(self, n_samples, n_features):
         """Initialize latent variables."""
-
+        
         self.random_state_ = check_random_state(self.random_state)
         self.n_batch_iter_ = 1
         self.n_iter_ = 0
@@ -265,14 +276,23 @@ class CVI(BaseEstimator, TransformerMixin):
             self.doc_topic_prior_ = 1. / self.n_topics
         else:
             self.doc_topic_prior_ = self.doc_topic_prior
+            
+        if self.doc_topic_prior_gauss is None:
+            self.doc_topic_prior_gauss_ = np.zeros(self.n_topics), 0.1 * np.identity(self.n_topics)
 
         if self.topic_word_prior is None:
             self.topic_word_prior_ = 1. / self.n_topics
         else:
             self.topic_word_prior_ = self.topic_word_prior
+            
 
         init_gamma = 100.
         init_var = 1. / init_gamma
+        # variational parameters for topic distribution
+        self.m_ = np.zeros((n_samples, self.n_topics))
+        self.v_ = np.ones((n_samples, self.n_topics))
+        self.zeta_ = np.sum(np.exp(self.m_ + self.v_/2), axis=1)
+        
         # this is called `alpha`
         self.components_ = self.random_state_.gamma(
             init_gamma, init_var, (self.n_topics, n_features))
@@ -280,7 +300,8 @@ class CVI(BaseEstimator, TransformerMixin):
         # In the literature, this is `exp(E[log(beta)])`
         self.exp_dirichlet_component_ = np.exp(
             _dirichlet_expectation_2d(self.components_))
-
+    
+        
     def _e_step(self, X, cal_sstats, random_init, parallel=None):
         """E-step in EM update.
         Parameters
@@ -307,8 +328,6 @@ class CVI(BaseEstimator, TransformerMixin):
 
         # Run e-step in parallel
         random_state = self.random_state_ if random_init else None
-
-        # TODO: make Parallel._effective_n_jobs public instead?
         n_jobs = _get_n_jobs(self.n_jobs)
         if parallel is None:
             parallel = Parallel(n_jobs=n_jobs, verbose=max(0, self.verbose - 1))
@@ -316,6 +335,7 @@ class CVI(BaseEstimator, TransformerMixin):
             delayed(_update_doc_distribution)(X[idx_slice, :],
                                               self.exp_dirichlet_component_,
                                               self.doc_topic_prior_,
+                                              self.doc_topic_prior_gauss_,
                                               self.max_doc_update_iter,
                                               self.mean_change_tol, cal_sstats,
                                               random_state)
@@ -331,7 +351,6 @@ class CVI(BaseEstimator, TransformerMixin):
             suff_stats = np.zeros(self.components_.shape)
             for sstats in sstats_list:
                 suff_stats += sstats
-            suff_stats *= self.exp_dirichlet_component_
         else:
             suff_stats = None
 
@@ -410,7 +429,7 @@ class CVI(BaseEstimator, TransformerMixin):
 
         # initialize parameters or check
         if not hasattr(self, 'components_'):
-            self._init_latent_vars(n_features)
+            self._init_latent_vars(n_samples, n_features)
 
         if n_features != self.components_.shape[1]:
             raise ValueError(
@@ -452,7 +471,7 @@ class CVI(BaseEstimator, TransformerMixin):
         batch_size = self.batch_size
 
         # initialize parameters
-        self._init_latent_vars(n_features)
+        self._init_latent_vars(n_samples, n_features)
         # change to perplexity later
         last_bound = None
         n_jobs = _get_n_jobs(self.n_jobs)
