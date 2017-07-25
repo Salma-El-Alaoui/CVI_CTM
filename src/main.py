@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
-Spyder Editor
-
-This is a temporary script file.
-"""
 
 from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import CountVectorizer
 from cvi import CVI
+import numpy as np
 
 #%%
 def print_top_words(model, feature_names, n_top_words):
@@ -24,7 +20,8 @@ n_top_words = 10
 
 dataset = fetch_20newsgroups(shuffle=True, random_state=1,
                              remove=('headers', 'footers', 'quotes'))
-categories = dataset.target_names[:n_samples]
+categories = dataset.target[:n_samples]
+categories_names = dataset.target_names[:n_samples]
 data_samples = dataset.data[:n_samples]
 
 #%%
@@ -41,3 +38,16 @@ lda.fit(X)
 tf_feature_names = tf_vectorizer.get_feature_names()
 print_top_words(lda, tf_feature_names, n_top_words)
 
+#%%
+cnts = X.todense()
+topics = np.zeros((n_topics, n_features))
+for topic in np.unique(categories):
+    for document, topic_d in enumerate(categories):
+        if topic == topic_d:
+            topics[topic, :] += cnts[document, :].A1
+#%%
+
+for topic_idx, topic in enumerate(topics): 
+    print(categories_names[topic_idx], ":")
+    print(" ".join([tf_feature_names[i] for i in topic.argsort()[:-n_top_words -1:-1]]))
+print()
