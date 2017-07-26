@@ -81,17 +81,22 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior, doc_topic
     # diff on `component_` (only calculate it when `cal_diff` is True)
     suff_stats = np.zeros(exp_topic_word_distr.shape) if cal_sstats else None
     
-    weight = 1 
+    weight = 0.5
     
     # component coming from the prior in computation of lambda
     sigma_inv = np.linalg.pinv((doc_topic_prior_gauss)[1])
-    prior_comp = sigma_inv.dot((doc_topic_prior_gauss)[0]), -0.5 * sigma_inv
-
+    prior_comp = sigma_inv.dot((doc_topic_prior_gauss)[0]), -0.5 * np.diag(sigma_inv)
+                              
+    m = np.zeros((n_samples, n_topics))
+    v = np.ones((n_samples, n_topics))
+    zeta = np.sum(np.exp(m + v/2), axis=1)  
+    lambda_var = np.zeros((n_samples, n_topics)), np.zeros((n_samples, n_topics))
+                 
     if is_sparse_x:
         X_data = X.data
         X_indices = X.indices
         X_indptr = X.indptr
-
+        
     for idx_d in xrange(n_samples):
         if is_sparse_x:
             ids = X_indices[X_indptr[idx_d]:X_indptr[idx_d + 1]]
@@ -99,15 +104,24 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior, doc_topic
         else:
             ids = np.nonzero(X[idx_d, :])[0]
             cnts = X[idx_d, ids]
-
+        # Number of words in the document:
+        N = np.sum(cnts)
+        
         doc_topic_d = doc_topic_distr[idx_d, :]
         # The next one is a copy, since the inner loop overwrites it.
         exp_doc_topic_d = exp_doc_topic[idx_d, :].copy()
         exp_topic_word_d = exp_topic_word_distr[:, ids]
-
+        
         # Iterate between `doc_topic_d` and `norm_phi` until convergence
         for _ in xrange(0, max_iters):
             last_d = doc_topic_d
+            
+            lambda_var[0][idx_d, :] = weight * doc_topic_d + prior_comp[0] + (1 - weight) * lambda_var[0][idx_d, :]
+            lambda_var[1][idx_d, :] = weight * -N/(2 * zeta[idx_d]) * np.exp(m[idx_d, :] + v[idx_d, :]/2) + prior_comp[1] + (1 - weight) * lambda_var[1][idx_d, :]
+        
+            m[idx_d, :] = - 0.5 * lambda_var[0][idx_d, :]/ lambda_var[1][idx_d, :]
+            v[idx_d, :] = - 0.5 * 1 / lambda_var[1][idx_d, :]
+            zeta[idx_d] = np.sum(np.exp(m[idx_d, :] + v[idx_d, :] /2))
 
             # The optimal phi_{dwk} is proportional to
             # exp(E[log(theta_{dk})]) * exp(E[log(beta_{dw})]).
@@ -121,6 +135,7 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior, doc_topic
 
             if mean_change(last_d, doc_topic_d) < mean_change_tol:
                 break
+            
         doc_topic_distr[idx_d, :] = doc_topic_d
 
         # Contribution of document d to the expected sufficient
