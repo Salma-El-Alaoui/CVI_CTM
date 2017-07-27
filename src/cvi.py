@@ -76,7 +76,7 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior, doc_topic
 
     # In the literature, this is `exp(E[log(theta)])`
     # TODO: change this for CTM.
-    exp_doc_topic = np.exp(_dirichlet_expectation_2d(doc_topic_distr))
+    #exp_doc_topic = np.exp(_dirichlet_expectation_2d(doc_topic_distr))
 
     # diff on `component_` (only calculate it when `cal_diff` is True)
     suff_stats = np.zeros(exp_topic_word_distr.shape) if cal_sstats else None
@@ -91,6 +91,7 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior, doc_topic
     v = np.ones((n_samples, n_topics))
     zeta = np.sum(np.exp(m + v/2), axis=1)  
     lambda_var = np.zeros((n_samples, n_topics)), np.zeros((n_samples, n_topics))
+    exp_doc_topic = np.exp(m)
                  
     if is_sparse_x:
         X_data = X.data
@@ -111,33 +112,47 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior, doc_topic
         # The next one is a copy, since the inner loop overwrites it.
         exp_doc_topic_d = exp_doc_topic[idx_d, :].copy()
         exp_topic_word_d = exp_topic_word_distr[:, ids]
+        m_d = m[idx_d, :]
+        v_d = v[idx_d, :]
+        zeta_d = zeta[idx_d]
+        lambda_d = lambda_var[0][idx_d, :], lambda_var[1][idx_d, :]
         
         # Iterate between `doc_topic_d` and `norm_phi` until convergence
         for _ in xrange(0, max_iters):
             last_d = doc_topic_d
+            last_m =  m_d
+            last_v = v_d
+            last_lambda = lambda_d
+            last_zeta = zeta_d
             
-            lambda_var[0][idx_d, :] = weight * doc_topic_d + prior_comp[0] + (1 - weight) * lambda_var[0][idx_d, :]
-            lambda_var[1][idx_d, :] = weight * -N/(2 * zeta[idx_d]) * np.exp(m[idx_d, :] + v[idx_d, :]/2) + prior_comp[1] + (1 - weight) * lambda_var[1][idx_d, :]
+            lambda_d = weight * doc_topic_d + prior_comp[0] + (1 - weight) * lambda_d[0], \
+                     weight * -N/(2 * zeta[idx_d]) * np.exp(m[idx_d, :] + v[idx_d, :]/2) + prior_comp[1] + (1 - weight) * lambda_d[1]
         
-            m[idx_d, :] = - 0.5 * lambda_var[0][idx_d, :]/ lambda_var[1][idx_d, :]
-            v[idx_d, :] = - 0.5 * 1 / lambda_var[1][idx_d, :]
-            zeta[idx_d] = np.sum(np.exp(m[idx_d, :] + v[idx_d, :] /2))
+            m_d = - 0.5 * lambda_d[0] / lambda_d[1]
+            v_d = - 0.5 * 1 / lambda_d[1]
+            zeta_d = np.sum(np.exp(m_d + v_d /2))
+            exp_doc_topic_d = np.exp(m_d)
 
             # The optimal phi_{dwk} is proportional to
             # exp(E[log(theta_{dk})]) * exp(E[log(beta_{dw})]).
             norm_phi = np.dot(exp_doc_topic_d, exp_topic_word_d) + EPS
-
+            
+            
             doc_topic_d = (exp_doc_topic_d *
-                           np.dot(cnts / norm_phi, exp_topic_word_d.T))
+                          np.dot(cnts / norm_phi, exp_topic_word_d.T))
             # Note: adds doc_topic_prior to doc_topic_d, in-place.
-            _dirichlet_expectation_1d(doc_topic_d, doc_topic_prior,
-                                      exp_doc_topic_d)
+            #_dirichlet_expectation_1d(doc_topic_d, doc_topic_prior,
+            #                          exp_doc_topic_d)
 
             if mean_change(last_d, doc_topic_d) < mean_change_tol:
                 break
             
         doc_topic_distr[idx_d, :] = doc_topic_d
-
+        m[idx_d, :] = m_d
+        v[idx_d, :] = v_d
+        zeta[idx_d] = zeta_d
+        lambda_var[0][idx_d, :] , lambda_var[1][idx_d, :]= lambda_d[0], lambda_d[1] 
+        
         # Contribution of document d to the expected sufficient
         # statistics for the M step.
         # sstats[k, w] = \sum_d n_{dw} * phi_{dwk} 
@@ -147,7 +162,7 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior, doc_topic
             suff_stats[:, ids] += np.outer(exp_doc_topic_d, cnts / norm_phi) * exp_topic_word_distr[:, ids]
             
 
-    return (doc_topic_distr, suff_stats)
+    return (doc_topic_distr, m, v, suff_stats)
 
 
 class CVI(BaseEstimator, TransformerMixin):
@@ -357,7 +372,7 @@ class CVI(BaseEstimator, TransformerMixin):
             for idx_slice in gen_even_slices(X.shape[0], n_jobs))
 
         # merge result
-        doc_topics, sstats_list = zip(*results)
+        doc_topics, m, v, sstats_list = zip(*results)
         doc_topic_distr = np.vstack(doc_topics)
 
         if cal_sstats:
@@ -369,7 +384,7 @@ class CVI(BaseEstimator, TransformerMixin):
         else:
             suff_stats = None
 
-        return (doc_topic_distr, suff_stats)
+        return (doc_topic_distr, m, v, suff_stats)
 
     def _em_step(self, X, total_samples, batch_update, parallel=None):
         """EM update for 1 iteration.
@@ -393,7 +408,7 @@ class CVI(BaseEstimator, TransformerMixin):
         """
 
         # E-step
-        _, suff_stats = self._e_step(X, cal_sstats=True, random_init=True,
+        _,_,_,suff_stats = self._e_step(X, cal_sstats=True, random_init=True,
                                      parallel=parallel)
 
         # M-step
@@ -503,7 +518,7 @@ class CVI(BaseEstimator, TransformerMixin):
 
                 # check perplexity
                 if evaluate_every > 0 and (i + 1) % evaluate_every == 0:
-                    doc_topics_distr, _ = self._e_step(X, cal_sstats=False,
+                    doc_topics_distr, m, v, _ = self._e_step(X, cal_sstats=False,
                                                        random_init=False,
                                                        parallel=parallel)
                     bound = self.perplexity(X, doc_topics_distr,
@@ -543,13 +558,13 @@ class CVI(BaseEstimator, TransformerMixin):
                 "the model was trained with feature size %d." %
                 (n_features, self.components_.shape[1]))
 
-        doc_topic_distr, _ = self._e_step(X, cal_sstats=False,
+        doc_topic_distr, m, v, _ = self._e_step(X, cal_sstats=False,
                                           random_init=False)
         # normalize doc_topic_distr
         doc_topic_distr /= doc_topic_distr.sum(axis=1)[:, np.newaxis]
-        return doc_topic_distr
+        return doc_topic_distr, m, v
 
-    def _approx_bound(self, X, doc_topic_distr, sub_sampling):
+    def _approx_bound(self, X, doc_topic_distr, m, v, sub_sampling):
         """Estimate the variational bound.
         Estimate the variational bound over "all documents" using only the
         documents passed in as X. Since log-likelihood of each word cannot
@@ -567,6 +582,8 @@ class CVI(BaseEstimator, TransformerMixin):
         Returns
         -------
         score : float
+        :param m:
+        :param v:
         """
 
         def _loglikelihood(prior, distr, dirichlet_distr, size):
@@ -581,16 +598,21 @@ class CVI(BaseEstimator, TransformerMixin):
         n_features = self.components_.shape[1]
         score = 0
 
-        dirichlet_doc_topic = _dirichlet_expectation_2d(doc_topic_distr)
+        #dirichlet_doc_topic = _dirichlet_expectation_2d(doc_topic_distr)
         dirichlet_component_ = _dirichlet_expectation_2d(self.components_)
-        doc_topic_prior = self.doc_topic_prior_
+        #doc_topic_prior = self.doc_topic_prior_
         topic_word_prior = self.topic_word_prior_
 
         if is_sparse_x:
             X_data = X.data
             X_indices = X.indices
             X_indptr = X.indptr
-
+        
+         ## CTM
+        m = np.zeros((n_samples, self.n_topics))
+        v = np.ones((n_samples, self.n_topics))
+        sigma_inv = np.linalg.pinv((self.doc_topic_prior_gauss_)[1])
+        mat = 0
         # E[log p(docs | theta, beta)]
         for idx_d in xrange(0, n_samples):
             if is_sparse_x:
@@ -599,14 +621,22 @@ class CVI(BaseEstimator, TransformerMixin):
             else:
                 ids = np.nonzero(X[idx_d, :])[0]
                 cnts = X[idx_d, ids]
-            temp = (dirichlet_doc_topic[idx_d, :, np.newaxis]
+            temp = (doc_topic_distr[idx_d, :, np.newaxis]
                     + dirichlet_component_[:, ids])
             norm_phi = logsumexp(temp)
             score += np.dot(cnts, norm_phi)
-
+            
+            #compute E[log p(theta | alpha) - log q(theta | gamma)] for CTM
+            score += 0.5 * (np.linalg.slogdet(sigma_inv)[1] - n_topics * np.log(2 * np.pi)\
+                - np.trace(np.dot(np.diag(v[idx_d, :]), sigma_inv))\
+                + ((m[idx_d, :]- self.doc_topic_prior_gauss_[0]).T.dot(sigma_inv)).dot(m[idx_d, :] - self.doc_topic_prior_gauss_[0]))
+            
+            score += np.sum(np.sum(0.5 * (np.log(v) + np.log(2 * np.pi) + 1), axis=1), axis=0)
+            
         # compute E[log p(theta | alpha) - log q(theta | gamma)]
-        score += _loglikelihood(doc_topic_prior, doc_topic_distr,
-                                dirichlet_doc_topic, self.n_topics)
+        ## LDA
+        #score += _loglikelihood(doc_topic_prior, doc_topic_distr,
+        #                       dirichlet_doc_topic, self.n_topics)
 
         # Compensate for the subsampling of the population of documents
         if sub_sampling:
@@ -633,11 +663,11 @@ class CVI(BaseEstimator, TransformerMixin):
 
         X = self._check_non_neg_array(X, "LatentDirichletAllocation.score")
 
-        doc_topic_distr = self.transform(X)
-        score = self._approx_bound(X, doc_topic_distr, sub_sampling=False)
+        doc_topic_distr, m, v = self.transform(X)
+        score = self._approx_bound(X, doc_topic_distr, m, v, sub_sampling=False)
         return score
 
-    def perplexity(self, X, doc_topic_distr=None, sub_sampling=False):
+    def perplexity(self, X, doc_topic_distr=None, m=None, v=None, sub_sampling=False):
         """Calculate approximate perplexity for data X.
         Perplexity is defined as exp(-1. * log-likelihood per word)
         Parameters
@@ -671,7 +701,7 @@ class CVI(BaseEstimator, TransformerMixin):
                 raise ValueError("Number of topics does not match.")
 
         current_samples = X.shape[0]
-        bound = self._approx_bound(X, doc_topic_distr, sub_sampling)
+        bound = self._approx_bound(X, doc_topic_distr, m, v, sub_sampling)
 
         if sub_sampling:
             word_cnt = X.sum() * (float(self.total_samples) / current_samples)

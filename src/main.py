@@ -2,6 +2,7 @@
 
 from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
 from cvi import CVI
 import numpy as np
 
@@ -31,11 +32,18 @@ tf_vectorizer = CountVectorizer(max_df=0.95, min_df=2,
 X = tf_vectorizer.fit_transform(data_samples)
 
 #%%
-lda = CVI(n_topics=n_topics, evaluate_every=5, learning_method='batch', max_iter=100, verbose=True, random_state=0)
-lda.fit(X)
+ctm = CVI(n_topics=n_topics, evaluate_every=5, learning_method='batch', max_iter=100, verbose=True, random_state=0)
+ctm.fit(X)
+#%%
+print("=================CTM================")
+tf_feature_names = tf_vectorizer.get_feature_names()
+print_top_words(ctm, tf_feature_names, n_top_words)
 
 #%%
-tf_feature_names = tf_vectorizer.get_feature_names()
+lda = LatentDirichletAllocation(n_topics=n_topics, learning_method='batch', max_iter=100, verbose=False, random_state=0)
+lda.fit(X)
+#%%
+print("=================LDA================")
 print_top_words(lda, tf_feature_names, n_top_words)
 
 #%%
