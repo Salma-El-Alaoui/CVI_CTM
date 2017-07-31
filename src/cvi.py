@@ -13,6 +13,9 @@ Link: https://github.com/scikit-learn/scikit-learn/blob/ab93d65/sklearn/decompos
 # Author: Chyi-Kwei Yau (original sklearn implementation)
 # Author: Matthew D. Hoffman (original onlineldavb implementation)
 
+
+# TODO: check convergence for 
+
 import numpy as np
 import scipy.sparse as sp
 from scipy.special import gammaln
@@ -118,6 +121,7 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior, doc_topic
         lambda_d = lambda_var[0][idx_d, :], lambda_var[1][idx_d, :]
         
         # Iterate between `doc_topic_d` and `norm_phi` until convergence
+        print("Document")
         for _ in xrange(0, max_iters):
             last_d = doc_topic_d
             last_m =  m_d
@@ -143,7 +147,7 @@ def _update_doc_distribution(X, exp_topic_word_distr, doc_topic_prior, doc_topic
             # Note: adds doc_topic_prior to doc_topic_d, in-place.
             #_dirichlet_expectation_1d(doc_topic_d, doc_topic_prior,
             #                          exp_doc_topic_d)
-
+            print("m",)
             if mean_change(last_d, doc_topic_d) < mean_change_tol:
                 break
             
