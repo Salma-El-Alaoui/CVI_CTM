@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 import time
-from scipy.special import psi
+from scipy.special import psi, gammaln
 from scipy.misc import logsumexp
 import scipy as sp
 
@@ -28,9 +28,9 @@ class CTM:
         if alpha_mu == None:
             alpha_mu = 0
         if alpha_sigma == None:
-            alpha_sigma = 1/self._number_of_topics
+            alpha_sigma = 1
         if alpha_beta == None:
-            alpha_beta = 1/self._number_of_types
+            alpha_beta = 1/self._number_of_topics
 
         self._diagonal_covariance_matrix = False
 
@@ -58,9 +58,8 @@ class CTM:
             self._type_to_index[word] = len(self._type_to_index)
         self._vocab = self._type_to_index.keys()
 
-    def parse_data(self, corpus=None):
-        if corpus == None:
-            corpus = self._corpus
+    def parse_data(self):
+        corpus = self._corpus
 
         doc_count = 0
 
@@ -88,7 +87,6 @@ class CTM:
             if doc_count % 10000 == 0:
                 print("Parsed %d Documents..." % doc_count)
 
-        assert len(word_ids) == len(word_cts);
         print("Parsed %d Documents..." % (doc_count))
 
         return word_ids, word_cts
@@ -98,7 +96,7 @@ class CTM:
         self._lambda = np.zeros((self._number_of_documents, self._number_of_topics))
         self._nu_square = np.ones((self._number_of_documents, self._number_of_topics))
         # initialize a V-by-K matrix beta, subject to the sum over every row is 1
-        self._eta = np.random.gamma(100., 1. / 100., (self._number_of_topics, self._number_of_types))
+        self._eta = np.random.gamma(100., 0.01, (self._number_of_topics, self._number_of_types))
 
     def optimize_doc_lambda(self, doc_lambda, arguments):
 
@@ -107,15 +105,121 @@ class CTM:
                                                   args=arguments,
                                                   method=self._scipy_optimization_method,
                                                   jac=self.f_prime_doc_lambda,
-                                                  hess=self.f_hessian_doc_lambda,
-                                                  hessp=self.f_hessian_direction_doc_lambda,
+                                                  #hess=self.f_hessian_doc_lambda,
+                                                  #hessp=self.f_hessian_direction_doc_lambda,
                                                   bounds=None,
                                                   constraints=(),
                                                   tol=None,
                                                   callback=None,
                                                   options={'disp': False})
         return optimize_result.x
-    #TODO: compute differantial, hessian and hessian direction
+
+    def f_doc_lambda(self, doc_lambda, *args):
+        (doc_nu_square, doc_zeta_factor, sum_phi, total_word_count) = args
+
+        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis], axis=1)
+        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta);
+
+        function_doc_lambda = np.sum(sum_phi * doc_lambda);
+
+        if self._diagonal_covariance_matrix:
+            mean_adjustment = doc_lambda - self._alpha_mu
+            function_doc_lambda += -0.5 * np.sum((mean_adjustment ** 2) / self._alpha_sigma)
+        else:
+            mean_adjustment = doc_lambda[np.newaxis, :] - self._alpha_mu
+            function_doc_lambda += -0.5 * np.dot(np.dot(mean_adjustment, self._alpha_sigma_inv), mean_adjustment.T)
+
+        function_doc_lambda += -total_word_count * np.sum(exp_over_doc_zeta)
+
+        return np.asscalar(-function_doc_lambda)
+
+    def f_prime_doc_lambda(self, doc_lambda, *args):
+        (doc_nu_square, doc_zeta_factor, sum_phi, total_word_count) = args
+
+        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis], axis=1)
+        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta);
+        assert exp_over_doc_zeta.shape == (self._number_of_topics,)
+
+        if self._diagonal_covariance_matrix:
+            function_prime_doc_lambda = (self._alpha_mu - doc_lambda) / self._alpha_sigma;
+        else:
+            function_prime_doc_lambda = np.dot((self._alpha_mu - doc_lambda[np.newaxis, :]), self._alpha_sigma_inv)[0, :]
+
+        function_prime_doc_lambda += sum_phi
+        function_prime_doc_lambda -= total_word_count * exp_over_doc_zeta
+
+        return np.asarray(-function_prime_doc_lambda)
+
+    def optimize_doc_nu_square_in_log_space(self, doc_nu_square, arguments, method_name=None):
+        log_doc_nu_square = np.log(doc_nu_square)
+        optimize_result = sp.optimize.minimize(self.f_log_doc_nu_square,
+                                                  log_doc_nu_square,
+                                                  args=arguments,
+                                                  method=method_name,
+                                                  jac=self.f_prime_log_doc_nu_square,
+                                                  #hess=self.f_hessian_log_doc_nu_square,
+                                                  #hessp=self.f_hessian_direction_log_doc_nu_square,
+                                                  bounds=None,
+                                                  constraints=(),
+                                                  tol=None,
+                                                  callback=None,
+                                                  options={'disp': False})
+
+        log_doc_nu_square_update = optimize_result.x
+
+        return np.exp(log_doc_nu_square_update)
+
+    def f_doc_nu_square(self, doc_nu_square, *args):
+        (doc_lambda, doc_zeta_factor, total_word_count) = args
+
+        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis], axis=1)
+        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta);
+
+        function_doc_nu_square = 0.5 * np.sum(np.log(doc_nu_square));
+
+        if self._diagonal_covariance_matrix:
+            function_doc_nu_square += -0.5 * np.sum(doc_nu_square / self._alpha_sigma)
+        else:
+            function_doc_nu_square += -0.5 * np.sum(doc_nu_square * np.diag(self._alpha_sigma_inv))
+
+        function_doc_nu_square += -total_word_count * np.sum(exp_over_doc_zeta)
+
+        return np.asscalar(-function_doc_nu_square)
+
+    def f_log_doc_nu_square(self, log_doc_nu_square, *args):
+        return self.f_doc_nu_square(np.exp(log_doc_nu_square), *args)
+
+    def f_prime_log_doc_nu_square(self, log_doc_nu_square, *args):
+        (doc_lambda, doc_zeta_factor, total_word_count) = args
+
+        exp_log_doc_nu_square = np.exp(log_doc_nu_square)
+
+        exp_over_doc_zeta = sp.misc.logsumexp(
+            doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * exp_log_doc_nu_square[:, np.newaxis], axis=1)
+        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta)
+
+        if self._diagonal_covariance_matrix:
+            function_prime_log_doc_nu_square = -0.5 * exp_log_doc_nu_square / self._alpha_sigma
+        else:
+            function_prime_log_doc_nu_square = -0.5 * exp_log_doc_nu_square * np.diag(self._alpha_sigma_inv)
+        function_prime_log_doc_nu_square += 0.5
+        function_prime_log_doc_nu_square -= 0.5 * total_word_count * exp_over_doc_zeta * exp_log_doc_nu_square
+
+        assert function_prime_log_doc_nu_square.shape == (self._number_of_topics,)
+
+        return np.asarray(-function_prime_log_doc_nu_square)
+
+    def m_step(self, phi_suff_stats):
+        # compute the beta terms
+        topic_log_likelihood = self._number_of_topics * \
+                               (sp.special.gammaln(np.sum(self._alpha_beta)) - np.sum(gammaln(self._alpha_beta)))
+        # compute the eta terms
+        topic_log_likelihood += np.sum(np.sum(gammaln(self._eta), axis=1) - gammaln(np.sum(self._eta, axis=1)))
+
+        self._eta = phi_suff_stats + self._alpha_beta
+        return topic_log_likelihood
+
+        return 0
 
     def em_step(self):
         self._counter += 1
@@ -127,12 +231,15 @@ class CTM:
         topic_log_likelihood = self.m_step(phi_sufficient_statistics)
         clock_m_step = time.time() - clock_m_step
 
-        print(document_log_likelihood, topic_log_likelihood)
         joint_log_likelihood = document_log_likelihood + topic_log_likelihood
-
-        print(" E step  of iteration %d finished in %g seconds " % (self._counter, clock_e_step))
-        print(" M step of iteration %d finished in %g seconds" % (self._counter, clock_e_step))
+        #print(" E step  of iteration %d finished in %g seconds " % (self._counter, clock_e_step))
+        #print(" M step of iteration %d finished in %g seconds" % (self._counter, clock_e_step))
         print("log-likelihood: %g" % joint_log_likelihood)
+        word_cts = self._parsed_corpus[1]
+        word_ids = self._parsed_corpus[0]
+        perplexity = joint_log_likelihood / sum([np.sum(a) for a in word_cts])
+        print("perplexity estimate = %f " % (np.exp(-perplexity)))
+
 
     def e_step(self, local_parameter_iteration=10):
         word_ids = self._parsed_corpus[0]
@@ -143,7 +250,6 @@ class CTM:
         E_log_eta = compute_dirichlet_expectation(self._eta)
 
         document_log_likelihood = 0
-        words_log_likelihood = 0
 
         # initialize a V_matrix-by-K matrix phi sufficient statistics
         phi_sufficient_statistics = np.zeros((self._number_of_topics, self._number_of_types))
@@ -188,8 +294,7 @@ class CTM:
                 # doc_nu_square = self.optimize_doc_nu_square(doc_nu_square, arguments);
                 doc_nu_square = self.optimize_doc_nu_square_in_log_space(doc_nu_square, arguments)
  
-                # update zeta in close form
-                # doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square));
+                # update zeta in close form;
                 doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
                 doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
@@ -210,8 +315,8 @@ class CTM:
             # use the fact that doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square)), to cancel the factors
             document_log_likelihood -= logsumexp(doc_lambda + 0.5 * doc_nu_square) * doc_word_count
 
-            document_log_likelihood += 0.5 * self._number_of_topics;
-            # document_log_likelihood += 0.5 * self._number_of_topics * np.log(2 * np.pi)
+            document_log_likelihood += 0.5 * self._number_of_topics
+
             document_log_likelihood += 0.5 * np.sum(np.log(doc_nu_square))
 
             document_log_likelihood -= np.sum(np.exp(log_phi) * log_phi * term_counts)

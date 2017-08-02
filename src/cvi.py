@@ -14,8 +14,6 @@ Link: https://github.com/scikit-learn/scikit-learn/blob/ab93d65/sklearn/decompos
 # Author: Matthew D. Hoffman (original onlineldavb implementation)
 
 
-# TODO: check convergence for 
-
 import numpy as np
 import scipy.sparse as sp
 from scipy.special import gammaln

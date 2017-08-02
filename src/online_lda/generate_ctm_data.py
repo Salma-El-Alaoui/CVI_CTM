@@ -6,7 +6,7 @@ from onlineldavb import OnlineLDA, parse_doc_list
 
 class ToyDataset:
 
-    def __init__(self, nb_topics=3, nb_documents=100, vocab_size=5, document_size=50, concentration=0.5, ctm=True):
+    def __init__(self, nb_topics=3, nb_documents=100, vocab_size=5, document_size=50, concentration=1/3, ctm=True):
         # Constants
         self.K = nb_topics
         self.D = nb_documents
@@ -17,7 +17,7 @@ class ToyDataset:
 
         # hyper-parameters:
         self.mu = np.zeros(self.K)
-        self.sigma = concentration * np.identity(self.K)
+        self.sigma = np.identity(self.K)
         self.gamma = concentration * np.ones(self.V)
 
         # Draw topic
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     # eta is the hyperparameter for prior on topics beta
     # doing batch LDA here
     lda = OnlineLDA(vocab=data.vocab, K=data.K, D=data.D, alpha=1/data.K, eta=1/data.K, tau0=0, kappa=0)
-    iterations = 10000
+    iterations = 1000
     old_perplexity = 1.0 * sys.maxsize
     delta_perplexity = 1.0 * sys.maxsize
     for i in range(iterations):

@@ -32,16 +32,17 @@ tf_vectorizer = CountVectorizer(max_df=0.95, min_df=2,
 X = tf_vectorizer.fit_transform(data_samples)
 
 #%%
-ctm = CVI(n_topics=n_topics, evaluate_every=5, learning_method='batch', max_iter=100, verbose=True, random_state=0)
-ctm.fit(X)
+#ctm = CVI(n_topics=n_topics, evaluate_every=5, learning_method='batch', max_iter=100, verbose=True, random_state=0)
+#ctm.fit(X)
 #%%
-print("=================CTM================")
+#print("=================CTM================")
 tf_feature_names = tf_vectorizer.get_feature_names()
-print_top_words(ctm, tf_feature_names, n_top_words)
+#print_top_words(ctm, tf_feature_names, n_top_words)
 
 #%%
 lda = LatentDirichletAllocation(n_topics=n_topics, learning_method='batch', max_iter=100, verbose=False, random_state=0)
 lda.fit(X)
+print(lda.perplexity(X))
 #%%
 print("=================LDA================")
 print_top_words(lda, tf_feature_names, n_top_words)

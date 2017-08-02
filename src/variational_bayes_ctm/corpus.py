@@ -3,7 +3,7 @@ import string
 
 class ToyDataset:
 
-    def __init__(self, nb_topics=3, nb_documents=100, vocab_size=5, document_size=50, concentration=0.7, ctm=True):
+    def __init__(self, nb_topics=3, nb_documents=100, vocab_size=5, document_size=50, concentration=1/3, ctm=True):
         # Constants
         self.K = nb_topics
         self.D = nb_documents
