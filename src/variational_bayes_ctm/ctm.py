@@ -11,7 +11,7 @@ def compute_dirichlet_expectation(dirichlet_parameter):
     return psi(dirichlet_parameter) - psi(np.sum(dirichlet_parameter, 1))[:, np.newaxis]
 
 class CTM:
-    def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None, scipy_optimization_method="L-BFGS-B"):
+    def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None, scipy_optimization_method="L-BFGS-B", em_max_iter=1000, em_convergence=1e-03):
 
         self.parse_vocabulary(vocab)
         # initialize the size of the vocabulary, i.e. total number of distinct tokens.
@@ -45,10 +45,10 @@ class CTM:
         self._alpha_beta = np.zeros(self._number_of_types) + alpha_beta
 
         self.init_latent_vars()
-
         self._counter = 0
-
         self._scipy_optimization_method = scipy_optimization_method
+        self._em_max_iter = em_max_iter
+        self._em_convergence = em_convergence
 
     def parse_vocabulary(self, vocab):
         self._type_to_index = {}
@@ -232,21 +232,26 @@ class CTM:
         joint_log_likelihood = document_log_likelihood + topic_log_likelihood
         #print(" E step  of iteration %d finished in %g seconds " % (self._counter, clock_e_step))
         #print(" M step of iteration %d finished in %g seconds" % (self._counter, clock_e_step))
-        print("log-likelihood: %g" % joint_log_likelihood)
-        word_cts = self._parsed_corpus[1]
-        perplexity = joint_log_likelihood / sum([np.sum(a) for a in word_cts])
-        print("perplexity estimate = %f " % (np.exp(-perplexity)))
-        return joint_log_likelihood
+        return joint_log_likelihood[0][0]
 
-    def e_step(self, local_parameter_iteration=20):
-        word_ids = self._parsed_corpus[0]
-        word_cts = self._parsed_corpus[1]
+    def e_step(self, local_parameter_iteration=20, corpus=None):
+
+        if corpus is None:
+            word_ids = self._parsed_corpus[0]
+            word_cts = self._parsed_corpus[1]
+        else:
+            word_ids = corpus[0]
+            word_cts = corpus[1]
 
         number_of_documents = len(word_ids)
 
         E_log_eta = compute_dirichlet_expectation(self._eta)
 
+        if corpus is not None:
+            E_log_prob_eta = E_log_eta - sp.misc.logsumexp(E_log_eta, axis=1)[:, np.newaxis]
+
         document_log_likelihood = 0
+        words_log_likelihood = 0
 
         # initialize a V_matrix-by-K matrix phi sufficient statistics
         phi_sufficient_statistics = np.zeros((self._number_of_topics, self._number_of_types))
@@ -320,6 +325,10 @@ class CTM:
 
             document_log_likelihood -= np.sum(np.exp(log_phi) * log_phi * term_counts)
 
+            if corpus is not None:
+                # compute the phi terms
+                words_log_likelihood += np.sum(np.exp(log_phi + np.log(term_counts)) * E_log_prob_eta[:, term_ids]);
+
             # Note: all terms including E_q[p(\eta | \beta)], i.e., terms involving \Psi(\eta), are cancelled due to \eta updates in M-step
 
             lambda_values[doc_id, :] = doc_lambda
@@ -330,7 +339,31 @@ class CTM:
             if (doc_id + 1) % 1000 == 0:
                 print("successfully processed %d documents..." % (doc_id + 1))
 
-            self._lambda = lambda_values
-            self._nu_square = nu_square_values
-            return document_log_likelihood, phi_sufficient_statistics
+            if corpus is None:
+                self._lambda = lambda_values
+                self._nu_square = nu_square_values
+                return document_log_likelihood, phi_sufficient_statistics
+            else:
+                return words_log_likelihood, lambda_values, nu_square_values
+
+    def fit(self):
+        word_cts = self._parsed_corpus[1]
+        normalizer = sum([np.sum(a) for a in word_cts])
+        old_log_likelihood = np.finfo(np.float32).min
+        for i in range(self._em_max_iter):
+            log_likelihood = self.em_step()
+            perplexity = np.exp(-log_likelihood / normalizer)
+            convergence = np.abs((log_likelihood - old_log_likelihood)/old_log_likelihood)
+            print(convergence)
+            if convergence < self._em_convergence:
+                print('Converged after %d iterations, final log-likelihood: %.4f, final perplexity: %.4f'
+                      % (i + 1, log_likelihood, perplexity))
+                break
+            old_log_likelihood = log_likelihood
+            print('iteration: %d, log-likelihood: %.4f, perplexity: %.4f, convergence: %.4f'
+                  % (i + 1, log_likelihood, perplexity, convergence))
+        return log_likelihood, perplexity
+
+    def predict(self):
+        pass
 

@@ -4,8 +4,7 @@ from ctm import CTM
 if __name__ == "__main__":
     data = NewsDataset()
     ctm = CTM(corpus=data.doc_set, vocab=data.vocabulary, number_of_topics=10)
-    for i in range(1000):
-        ctm.em_step()
+    ctm.fit()
 
 
     #from sklearn.decomposition import LatentDirichletAllocation
