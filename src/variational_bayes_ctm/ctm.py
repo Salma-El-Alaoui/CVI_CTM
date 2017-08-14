@@ -25,11 +25,11 @@ class CTM:
         # initialize the total number of topics.
         self._number_of_topics = number_of_topics
 
-        if alpha_mu == None:
+        if alpha_mu is None:
             alpha_mu = 0
-        if alpha_sigma == None:
+        if alpha_sigma is None:
             alpha_sigma = 1
-        if alpha_beta == None:
+        if alpha_beta is None:
             alpha_beta = 1/self._number_of_topics
 
         self._diagonal_covariance_matrix = False
@@ -111,7 +111,7 @@ class CTM:
                                                   constraints=(),
                                                   tol=None,
                                                   callback=None,
-                                                  options={'disp': False})
+                                                  options={'disp': False, 'gtol': 1e-06})
         return optimize_result.x
 
     def f_doc_lambda(self, doc_lambda, *args):
@@ -163,7 +163,7 @@ class CTM:
                                                   constraints=(),
                                                   tol=None,
                                                   callback=None,
-                                                  options={'disp': False})
+                                                  options={'disp': False, 'gtol': 1e-06})
 
         log_doc_nu_square_update = optimize_result.x
 
@@ -219,8 +219,6 @@ class CTM:
         self._eta = phi_suff_stats + self._alpha_beta
         return topic_log_likelihood
 
-        return 0
-
     def em_step(self):
         self._counter += 1
         clock_e_step = time.time()
@@ -236,12 +234,11 @@ class CTM:
         #print(" M step of iteration %d finished in %g seconds" % (self._counter, clock_e_step))
         print("log-likelihood: %g" % joint_log_likelihood)
         word_cts = self._parsed_corpus[1]
-        word_ids = self._parsed_corpus[0]
         perplexity = joint_log_likelihood / sum([np.sum(a) for a in word_cts])
         print("perplexity estimate = %f " % (np.exp(-perplexity)))
+        return joint_log_likelihood
 
-
-    def e_step(self, local_parameter_iteration=10):
+    def e_step(self, local_parameter_iteration=20):
         word_ids = self._parsed_corpus[0]
         word_cts = self._parsed_corpus[1]
 
@@ -259,7 +256,8 @@ class CTM:
         nu_square_values = np.ones((number_of_documents, self._number_of_topics))  # + self._alpha_sigma[np.newaxis, :];
 
         # iterate over all documents
-        for doc_id in np.random.permutation(number_of_documents):
+        for doc_id in range(number_of_documents): #np.random.permutation
+            print(number_of_documents)
             # initialize gamma for this document
             doc_lambda = lambda_values[doc_id, :]
             doc_nu_square = nu_square_values[doc_id, :]
@@ -310,6 +308,7 @@ class CTM:
                 document_log_likelihood -= 0.5 * np.dot(
                     np.dot((self._alpha_mu - doc_lambda[np.newaxis, :]), self._alpha_sigma_inv),
                     (self._alpha_mu - doc_lambda[np.newaxis, :]).T)
+
 
             document_log_likelihood += np.sum(np.sum(np.exp(log_phi) * term_counts, axis=1) * doc_lambda)
             # use the fact that doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square)), to cancel the factors

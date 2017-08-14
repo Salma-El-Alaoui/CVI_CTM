@@ -1,5 +1,9 @@
 import numpy as np
 import string
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.feature_extraction.text import CountVectorizer
+import re
+import os
 
 class ToyDataset:
 
@@ -41,6 +45,42 @@ class ToyDataset:
                         for n in range(self.N)]
                         for d in range(self.D)]
 
-        self.vocab = [string.ascii_lowercase[i] for i in range(vocab_size)]
+        self.vocabulary = [string.ascii_lowercase[i] for i in range(vocab_size)]
         self.doc_set = [" ".join(d) for d in list_docs]
 
+
+class NewsDataset:
+
+    def __init__(self, n_samples=None, shuffle=True, random_state=0):
+        input_directory = "../../data/20_news_groups"
+        vocabulary_path = os.path.join(input_directory, 'vocabulary.txt')
+        input_voc_stream = open(vocabulary_path, 'r')
+        vocab = []
+        for line in input_voc_stream:
+            vocab.append(line.strip().lower().split()[0])
+        self.vocabulary = list(set(vocab))
+        self.shuffle = True
+        self.random_state = random_state
+
+        dataset = fetch_20newsgroups(shuffle=shuffle, random_state=1, remove=('headers', 'footers', 'quotes'))
+        if n_samples is None:
+            self.n_samples = len(dataset.target)
+        else:
+            self.n_samples = n_samples
+
+        self.categories = dataset.target[:n_samples]
+        self.categories_names = dataset.target_names[:n_samples]
+        self.raw_samples = dataset.data[:n_samples]
+
+        vectorizer = CountVectorizer(max_df=0.95, min_df=2, stop_words='english', preprocessor=self.preprocessor)
+        self.X = vectorizer.fit_transform(self.raw_samples)
+        self.data_samples = vectorizer.inverse_transform(self.X)
+        self.doc_set = [" ".join(d) for d in self.data_samples]
+
+    @staticmethod
+    def preprocessor(doc):
+        doc = doc.lower()
+        doc = re.sub(r'-', ' ', doc)
+        doc = re.sub(r'[^a-z ]', '', doc)
+        doc = re.sub(r' +', ' ', doc)
+        return doc

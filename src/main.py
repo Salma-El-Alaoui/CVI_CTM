@@ -3,8 +3,9 @@
 from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
-from cvi import CVI
 import numpy as np
+import re
+#from CVI import cvi
 
 #%%
 def print_top_words(model, feature_names, n_top_words):
@@ -26,12 +27,23 @@ categories_names = dataset.target_names[:n_samples]
 data_samples = dataset.data[:n_samples]
 
 #%%
+def preprocessor(doc):
+    doc = doc.lower()
+    doc = re.sub(r'-', ' ', doc)
+    doc = re.sub(r'[^a-z ]', '', doc)
+    doc = re.sub(r' +', ' ', doc)
+    return doc
+    
+#%%
 tf_vectorizer = CountVectorizer(max_df=0.95, min_df=2,
                                 max_features=n_features,
-                                stop_words='english')
+                                stop_words='english', preprocessor=preprocessor)
 X = tf_vectorizer.fit_transform(data_samples)
 
 #%%
+
+
+
 #ctm = CVI(n_topics=n_topics, evaluate_every=5, learning_method='batch', max_iter=100, verbose=True, random_state=0)
 #ctm.fit(X)
 #%%
