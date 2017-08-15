@@ -5,13 +5,16 @@ from scipy.special import psi, gammaln
 from scipy.misc import logsumexp
 import scipy as sp
 
+
 def compute_dirichlet_expectation(dirichlet_parameter):
     if (len(dirichlet_parameter.shape) == 1):
         return psi(dirichlet_parameter) - psi(np.sum(dirichlet_parameter))
     return psi(dirichlet_parameter) - psi(np.sum(dirichlet_parameter, 1))[:, np.newaxis]
 
+
 class CTM:
-    def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None, scipy_optimization_method="L-BFGS-B", em_max_iter=1000, em_convergence=1e-03):
+    def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None,
+                 scipy_optimization_method="L-BFGS-B", em_max_iter=100, em_convergence=1e-03):
 
         self.parse_vocabulary(vocab)
         # initialize the size of the vocabulary, i.e. total number of distinct tokens.
@@ -30,7 +33,7 @@ class CTM:
         if alpha_sigma is None:
             alpha_sigma = 1
         if alpha_beta is None:
-            alpha_beta = 1/self._number_of_topics
+            alpha_beta = 1 / self._number_of_topics
 
         self._diagonal_covariance_matrix = False
 
@@ -58,8 +61,9 @@ class CTM:
             self._type_to_index[word] = len(self._type_to_index)
         self._vocab = self._type_to_index.keys()
 
-    def parse_data(self):
-        corpus = self._corpus
+    def parse_data(self, corpus=None):
+        if corpus is None:
+            corpus = self._corpus
 
         doc_count = 0
 
@@ -77,15 +81,14 @@ class CTM:
                 document_word_dict[type_id] += 1
 
             if len(document_word_dict) == 0:
-                sys.stderr.write("problem occurred during parsing")
                 continue
 
             word_ids.append(np.array(list(document_word_dict.keys())))
             word_cts.append(np.array(list(document_word_dict.values()))[np.newaxis, :])
 
             doc_count += 1
-            if doc_count % 10000 == 0:
-                print("Parsed %d Documents..." % doc_count)
+            #if doc_count % 10000 == 0:
+            #    print("Parsed %d Documents..." % doc_count)
 
         print("Parsed %d Documents..." % (doc_count))
 
@@ -101,23 +104,24 @@ class CTM:
     def optimize_doc_lambda(self, doc_lambda, arguments):
 
         optimize_result = sp.optimize.minimize(self.f_doc_lambda,
-                                                  doc_lambda,
-                                                  args=arguments,
-                                                  method=self._scipy_optimization_method,
-                                                  jac=self.f_prime_doc_lambda,
-                                                  #hess=self.f_hessian_doc_lambda,
-                                                  #hessp=self.f_hessian_direction_doc_lambda,
-                                                  bounds=None,
-                                                  constraints=(),
-                                                  tol=None,
-                                                  callback=None,
-                                                  options={'disp': False, 'gtol': 1e-06})
+                                               doc_lambda,
+                                               args=arguments,
+                                               method=self._scipy_optimization_method,
+                                               jac=self.f_prime_doc_lambda,
+                                               # hess=self.f_hessian_doc_lambda,
+                                               # hessp=self.f_hessian_direction_doc_lambda,
+                                               bounds=None,
+                                               constraints=(),
+                                               tol=None,
+                                               callback=None,
+                                               options={'disp': False, 'gtol': 1e-06})
         return optimize_result.x
 
     def f_doc_lambda(self, doc_lambda, *args):
         (doc_nu_square, doc_zeta_factor, sum_phi, total_word_count) = args
 
-        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis], axis=1)
+        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis],
+                                      axis=1)
         exp_over_doc_zeta = np.exp(-exp_over_doc_zeta);
 
         function_doc_lambda = np.sum(sum_phi * doc_lambda);
@@ -136,14 +140,16 @@ class CTM:
     def f_prime_doc_lambda(self, doc_lambda, *args):
         (doc_nu_square, doc_zeta_factor, sum_phi, total_word_count) = args
 
-        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis], axis=1)
+        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis],
+                                      axis=1)
         exp_over_doc_zeta = np.exp(-exp_over_doc_zeta);
         assert exp_over_doc_zeta.shape == (self._number_of_topics,)
 
         if self._diagonal_covariance_matrix:
             function_prime_doc_lambda = (self._alpha_mu - doc_lambda) / self._alpha_sigma;
         else:
-            function_prime_doc_lambda = np.dot((self._alpha_mu - doc_lambda[np.newaxis, :]), self._alpha_sigma_inv)[0, :]
+            function_prime_doc_lambda = np.dot((self._alpha_mu - doc_lambda[np.newaxis, :]), self._alpha_sigma_inv)[0,
+                                        :]
 
         function_prime_doc_lambda += sum_phi
         function_prime_doc_lambda -= total_word_count * exp_over_doc_zeta
@@ -153,17 +159,17 @@ class CTM:
     def optimize_doc_nu_square_in_log_space(self, doc_nu_square, arguments, method_name=None):
         log_doc_nu_square = np.log(doc_nu_square)
         optimize_result = sp.optimize.minimize(self.f_log_doc_nu_square,
-                                                  log_doc_nu_square,
-                                                  args=arguments,
-                                                  method=method_name,
-                                                  jac=self.f_prime_log_doc_nu_square,
-                                                  #hess=self.f_hessian_log_doc_nu_square,
-                                                  #hessp=self.f_hessian_direction_log_doc_nu_square,
-                                                  bounds=None,
-                                                  constraints=(),
-                                                  tol=None,
-                                                  callback=None,
-                                                  options={'disp': False, 'gtol': 1e-06})
+                                               log_doc_nu_square,
+                                               args=arguments,
+                                               method=method_name,
+                                               jac=self.f_prime_log_doc_nu_square,
+                                               # hess=self.f_hessian_log_doc_nu_square,
+                                               # hessp=self.f_hessian_direction_log_doc_nu_square,
+                                               bounds=None,
+                                               constraints=(),
+                                               tol=None,
+                                               callback=None,
+                                               options={'disp': False, 'gtol': 1e-06})
 
         log_doc_nu_square_update = optimize_result.x
 
@@ -172,7 +178,8 @@ class CTM:
     def f_doc_nu_square(self, doc_nu_square, *args):
         (doc_lambda, doc_zeta_factor, total_word_count) = args
 
-        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis], axis=1)
+        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis],
+                                      axis=1)
         exp_over_doc_zeta = np.exp(-exp_over_doc_zeta);
 
         function_doc_nu_square = 0.5 * np.sum(np.log(doc_nu_square));
@@ -230,11 +237,11 @@ class CTM:
         clock_m_step = time.time() - clock_m_step
 
         joint_log_likelihood = document_log_likelihood + topic_log_likelihood
-        #print(" E step  of iteration %d finished in %g seconds " % (self._counter, clock_e_step))
-        #print(" M step of iteration %d finished in %g seconds" % (self._counter, clock_e_step))
+        # print(" E step  of iteration %d finished in %g seconds " % (self._counter, clock_e_step))
+        # print(" M step of iteration %d finished in %g seconds" % (self._counter, clock_e_step))
         return joint_log_likelihood[0][0]
 
-    def e_step(self, local_parameter_iteration=20, corpus=None):
+    def e_step(self, local_parameter_iteration=10, corpus=None):
 
         if corpus is None:
             word_ids = self._parsed_corpus[0]
@@ -261,8 +268,7 @@ class CTM:
         nu_square_values = np.ones((number_of_documents, self._number_of_topics))  # + self._alpha_sigma[np.newaxis, :];
 
         # iterate over all documents
-        for doc_id in range(number_of_documents): #np.random.permutation
-            print(number_of_documents)
+        for doc_id in range(number_of_documents):  # np.random.permutation
             # initialize gamma for this document
             doc_lambda = lambda_values[doc_id, :]
             doc_nu_square = nu_square_values[doc_id, :]
@@ -296,7 +302,7 @@ class CTM:
                 arguments = (doc_lambda, doc_zeta_factor, doc_word_count)
                 # doc_nu_square = self.optimize_doc_nu_square(doc_nu_square, arguments);
                 doc_nu_square = self.optimize_doc_nu_square_in_log_space(doc_nu_square, arguments)
- 
+
                 # update zeta in close form;
                 doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
                 doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
@@ -306,14 +312,13 @@ class CTM:
                 document_log_likelihood -= 0.5 * np.sum(doc_nu_square / self._alpha_sigma)
                 document_log_likelihood -= 0.5 * np.sum((doc_lambda - self._alpha_mu) ** 2 / self._alpha_sigma)
             else:
-                #TODO : replace logdet
-                #TODO : replace by EPS
+                # TODO : replace logdet
+                # TODO : replace by EPS
                 document_log_likelihood -= 0.5 * np.log(np.linalg.det(self._alpha_sigma) + 1e-30)
                 document_log_likelihood -= 0.5 * np.sum(doc_nu_square * np.diag(self._alpha_sigma_inv))
                 document_log_likelihood -= 0.5 * np.dot(
                     np.dot((self._alpha_mu - doc_lambda[np.newaxis, :]), self._alpha_sigma_inv),
                     (self._alpha_mu - doc_lambda[np.newaxis, :]).T)
-
 
             document_log_likelihood += np.sum(np.sum(np.exp(log_phi) * term_counts, axis=1) * doc_lambda)
             # use the fact that doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square)), to cancel the factors
@@ -329,22 +334,22 @@ class CTM:
                 # compute the phi terms
                 words_log_likelihood += np.sum(np.exp(log_phi + np.log(term_counts)) * E_log_prob_eta[:, term_ids]);
 
-            # Note: all terms including E_q[p(\eta | \beta)], i.e., terms involving \Psi(\eta), are cancelled due to \eta updates in M-step
+            # all terms including E_q[p(\eta | \beta)], i.e., terms involving \Psi(\eta), are cancelled due to \eta updates in M-step
 
             lambda_values[doc_id, :] = doc_lambda
             nu_square_values[doc_id, :] = doc_nu_square
 
             phi_sufficient_statistics[:, term_ids] += np.exp(log_phi + np.log(term_counts))
 
-            if (doc_id + 1) % 1000 == 0:
-                print("successfully processed %d documents..." % (doc_id + 1))
+            #if (doc_id + 1) % 1000 == 0:
+            #    print("successfully processed %d documents..." % (doc_id + 1))
 
-            if corpus is None:
-                self._lambda = lambda_values
-                self._nu_square = nu_square_values
-                return document_log_likelihood, phi_sufficient_statistics
-            else:
-                return words_log_likelihood, lambda_values, nu_square_values
+        if corpus is None:
+            self._lambda = lambda_values
+            self._nu_square = nu_square_values
+            return document_log_likelihood, phi_sufficient_statistics
+        else:
+            return words_log_likelihood, lambda_values, nu_square_values
 
     def fit(self):
         word_cts = self._parsed_corpus[1]
@@ -352,9 +357,8 @@ class CTM:
         old_log_likelihood = np.finfo(np.float32).min
         for i in range(self._em_max_iter):
             log_likelihood = self.em_step()
-            perplexity = np.exp(-log_likelihood / normalizer)
-            convergence = np.abs((log_likelihood - old_log_likelihood)/old_log_likelihood)
-            print(convergence)
+            perplexity = np.exp(-1.0 * (log_likelihood / normalizer))
+            convergence = np.abs((log_likelihood - old_log_likelihood) / old_log_likelihood)
             if convergence < self._em_convergence:
                 print('Converged after %d iterations, final log-likelihood: %.4f, final perplexity: %.4f'
                       % (i + 1, log_likelihood, perplexity))
@@ -364,6 +368,13 @@ class CTM:
                   % (i + 1, log_likelihood, perplexity, convergence))
         return log_likelihood, perplexity
 
-    def predict(self):
-        pass
+    def predict(self, test_corpus, var_iter=20):
+        parsed_corpus = self.parse_data(test_corpus)
+        normalizer = sum([np.sum(a) for a in parsed_corpus[1]])
+        clock_e_step = time.time()
+        document_log_likelihood, lambda_values, nu_square_values = self.e_step(corpus=parsed_corpus, local_parameter_iteration=var_iter)
+        clock_e_step = time.time() - clock_e_step
+        perplexity = np.exp(-1.0 * (document_log_likelihood / normalizer))
+        print(' heldout log-likelihood: %.4f, heldout perplexity: %.4f' % (document_log_likelihood, perplexity))
+        return document_log_likelihood, perplexity, lambda_values, nu_square_values
 

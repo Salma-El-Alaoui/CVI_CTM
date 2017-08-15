@@ -4,6 +4,7 @@ from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import CountVectorizer
 import re
 import os
+from sklearn.model_selection import train_test_split
 
 class ToyDataset:
 
@@ -51,7 +52,7 @@ class ToyDataset:
 
 class NewsDataset:
 
-    def __init__(self, n_samples=None, shuffle=True, random_state=0):
+    def __init__(self, n_samples=None, shuffle=True, random_state=0, train_size=0.8):
         input_directory = "../../data/20_news_groups"
         vocabulary_path = os.path.join(input_directory, 'vocabulary.txt')
         input_voc_stream = open(vocabulary_path, 'r')
@@ -61,8 +62,9 @@ class NewsDataset:
         self.vocabulary = list(set(vocab))
         self.shuffle = True
         self.random_state = random_state
+        self.train_size = train_size
 
-        dataset = fetch_20newsgroups(shuffle=shuffle, random_state=1, remove=('headers', 'footers', 'quotes'))
+        dataset = fetch_20newsgroups(shuffle=shuffle, random_state=self.random_state, remove=('headers', 'footers', 'quotes'))
         if n_samples is None:
             self.n_samples = len(dataset.target)
         else:
@@ -72,10 +74,11 @@ class NewsDataset:
         self.categories_names = dataset.target_names[:n_samples]
         self.raw_samples = dataset.data[:n_samples]
 
-        vectorizer = CountVectorizer(max_df=0.95, min_df=2, stop_words='english', preprocessor=self.preprocessor)
+        vectorizer = CountVectorizer(max_df=0.95, min_df=2, vocabulary=self.vocabulary, preprocessor=self.preprocessor) #stop_words='english'
         self.X = vectorizer.fit_transform(self.raw_samples)
-        self.data_samples = vectorizer.inverse_transform(self.X)
-        self.doc_set = [" ".join(d) for d in self.data_samples]
+        self.X_train, self.X_test = train_test_split(self.X, train_size=self.train_size, random_state=self.random_state)
+        self.doc_set_train = [" ".join(d) for d in vectorizer.inverse_transform(self.X_train)]
+        self.doc_set_test = [" ".join(d) for d in vectorizer.inverse_transform(self.X_test)]
 
     @staticmethod
     def preprocessor(doc):
