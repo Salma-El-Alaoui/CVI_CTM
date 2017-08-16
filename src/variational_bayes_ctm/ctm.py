@@ -64,7 +64,6 @@ class CTM:
     def parse_data(self, corpus=None):
         if corpus is None:
             corpus = self._corpus
-
         doc_count = 0
 
         word_ids = []
