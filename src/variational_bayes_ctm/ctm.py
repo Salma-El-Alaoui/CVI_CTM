@@ -4,10 +4,10 @@ import time
 from scipy.special import psi, gammaln
 from scipy.misc import logsumexp
 import scipy as sp
-
+import os
 
 def compute_dirichlet_expectation(dirichlet_parameter):
-    if (len(dirichlet_parameter.shape) == 1):
+    if len(dirichlet_parameter.shape) == 1:
         return psi(dirichlet_parameter) - psi(np.sum(dirichlet_parameter))
     return psi(dirichlet_parameter) - psi(np.sum(dirichlet_parameter, 1))[:, np.newaxis]
 
@@ -331,7 +331,7 @@ class CTM:
 
             if corpus is not None:
                 # compute the phi terms
-                words_log_likelihood += np.sum(np.exp(log_phi + np.log(term_counts)) * E_log_prob_eta[:, term_ids]);
+                words_log_likelihood += np.sum(np.exp(log_phi + np.log(term_counts)) * E_log_prob_eta[:, term_ids])
 
             # all terms including E_q[p(\eta | \beta)], i.e., terms involving \Psi(\eta), are cancelled due to \eta updates in M-step
 
@@ -356,24 +356,25 @@ class CTM:
         old_log_likelihood = np.finfo(np.float32).min
         for i in range(self._em_max_iter):
             log_likelihood = self.em_step()
-            perplexity = np.exp(-1.0 * (log_likelihood / normalizer))
+            perplexity = log_likelihood / normalizer
             convergence = np.abs((log_likelihood - old_log_likelihood) / old_log_likelihood)
             if convergence < self._em_convergence:
                 print('Converged after %d iterations, final log-likelihood: %.4f, final perplexity: %.4f'
                       % (i + 1, log_likelihood, perplexity))
                 break
             old_log_likelihood = log_likelihood
-            print('iteration: %d, log-likelihood: %.4f, perplexity: %.4f, convergence: %.4f'
+            print('iteration: %d, log-likelihood: %.4f, log-perplexity: %.4f, convergence: %.4f'
                   % (i + 1, log_likelihood, perplexity, convergence))
         return log_likelihood, perplexity
 
-    def predict(self, test_corpus, var_iter=20):
+    def predict(self, test_corpus, var_iter=10):
         parsed_corpus = self.parse_data(test_corpus)
         normalizer = sum([np.sum(a) for a in parsed_corpus[1]])
         clock_e_step = time.time()
         document_log_likelihood, lambda_values, nu_square_values = self.e_step(corpus=parsed_corpus, local_parameter_iteration=var_iter)
         clock_e_step = time.time() - clock_e_step
-        perplexity = np.exp(-1.0 * (document_log_likelihood / normalizer))
-        print(' heldout log-likelihood: %.4f, heldout perplexity: %.4f' % (document_log_likelihood, perplexity))
+        perplexity = document_log_likelihood / normalizer
+        print('heldout log-likelihood: %.4f, heldout log-perplexity: %.4f' % (document_log_likelihood, perplexity))
         return document_log_likelihood, perplexity, lambda_values, nu_square_values
+
 
