@@ -4,31 +4,37 @@ Conjugate Computation Variational Inference for Correlated Topic Models
 
 ## TODO
 
-### Algorithms
- - [ ] LDA - Batch
- - [ ] LDA - SVI
- - [ ] CTM - Variational Bayes
- - [ ] CTM -SVI
+### Implemented Algorithms
+ - [x] LDA - Batch
+ - [x] LDA - SVI
+ - [x] CTM - Variational Bayes
+ - [ ] CTM - CVI
 
 ### Datasets
- - [ ] 20 News groups (small)
- - [ ] Nature / NIPS (medium)
- - [ ] Wikipedia (medium)
+ - [ ] NIPS abstracts (small)
+ - [x] 20 News groups (medium)
+ - [ ] New York Times / Wikipedia
  
 ### Empirical Study
+
 #### Evaluation Measures
-- [ ] heldout (documents) perplexity
-- [ ] heldout(words) perplexity
-- [ ] heldout (documents) log-probability
-- [ ] heldout (words) log-probability
-#### Compare CTM to LDA model (better fit)
-- [ ] plp = f(number of topics)
-- [ ] pp = f( % observed words)
-#### Compare CVI to CTM-VB (& OLDA (SVI)?)
+- [x] heldout (documents) perplexity
+- [x] heldout (documents) log-probability
+
+#### CTM vs LDA (better fit)
+- [x] pp = f( % observed words)
+- [ ] document classification task
+    - [ ] Accuracy = f(number of topics)
+    - [ ] Precision-Recall
+- [ ] Visualise topics
+ 
+#### CVI vs CTM-VB (& OLDA (SVI)?)
 - [ ] pp / plp = f(time)
+
 #### Learning Parameters
 - [ ] Influence of step-size
-#### Qualitative Analysis of topic correlation
+
+
 
     
 
