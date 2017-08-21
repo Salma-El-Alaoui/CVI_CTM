@@ -73,12 +73,17 @@ class NewsDataset:
         self.categories = dataset.target[:n_samples]
         self.categories_names = dataset.target_names[:n_samples]
         self.raw_samples = dataset.data[:n_samples]
+        self.targets = dataset.target[:n_samples]
+        self.target_names = dataset.target_names[:n_samples]
 
-        vectorizer = CountVectorizer(max_df=0.95, min_df=2, vocabulary=self.vocabulary, preprocessor=self.preprocessor) #stop_words='english'
+        vectorizer = CountVectorizer(max_df=0.95, min_df=2, vocabulary=vocab, preprocessor=self.preprocessor)
         self.X = vectorizer.fit_transform(self.raw_samples)
-        self.X_train, self.X_test = train_test_split(self.X, train_size=self.train_size, random_state=self.random_state)
+        self.X_train, self.X_test, self.y_train, self.y_test =\
+            train_test_split(self.X, self.targets, train_size=self.train_size, random_state=self.random_state)
         self.doc_set_train = [" ".join(d) for d in vectorizer.inverse_transform(self.X_train)]
         self.doc_set_test = [" ".join(d) for d in vectorizer.inverse_transform(self.X_test)]
+        self.doc_train_list = [d.tolist() for d in vectorizer.inverse_transform(self.X_train)]
+        self.doc_test_list = [d.tolist() for d in vectorizer.inverse_transform(self.X_test)]
 
     @staticmethod
     def preprocessor(doc):
@@ -87,3 +92,58 @@ class NewsDataset:
         doc = re.sub(r'[^a-z ]', '', doc)
         doc = re.sub(r' +', ' ', doc)
         return doc
+
+if __name__ == "__main__":
+    ENGLISH_STOP_WORDS = frozenset([
+        "a", "about", "above", "across", "after", "afterwards", "again", "against",
+        "all", "almost", "alone", "along", "already", "also", "although", "always",
+        "am", "among", "amongst", "amoungst", "amount", "an", "and", "another",
+        "any", "anyhow", "anyone", "anything", "anyway", "anywhere", "are",
+        "around", "as", "at", "back", "be", "became", "because", "become",
+        "becomes", "becoming", "been", "before", "beforehand", "behind", "being",
+        "below", "beside", "besides", "between", "beyond", "bill", "both",
+        "bottom", "but", "by", "call", "can", "cannot", "cant", "co", "con",
+        "could", "couldnt", "cry", "de", "describe", "detail", "do", "done",
+        "down", "due", "during", "each", "eg", "eight", "either", "eleven", "else",
+        "elsewhere", "empty", "enough", "etc", "even", "ever", "every", "everyone",
+        "everything", "everywhere", "except", "few", "fifteen", "fifty", "fill",
+        "find", "fire", "first", "five", "for", "former", "formerly", "forty",
+        "found", "four", "from", "front", "full", "further", "get", "give", "go",
+        "had", "has", "hasnt", "have", "he", "hence", "her", "here", "hereafter",
+        "hereby", "herein", "hereupon", "hers", "herself", "him", "himself", "his",
+        "how", "however", "hundred", "i", "ie", "if", "in", "inc", "indeed",
+        "interest", "into", "is", "it", "its", "itself", "keep", "last", "latter",
+        "latterly", "least", "less", "ltd", "made", "many", "may", "me",
+        "meanwhile", "might", "mill", "mine", "more", "moreover", "most", "mostly",
+        "move", "much", "must", "my", "myself", "name", "namely", "neither",
+        "never", "nevertheless", "next", "nine", "no", "nobody", "none", "noone",
+        "nor", "not", "nothing", "now", "nowhere", "of", "off", "often", "on",
+        "once", "one", "only", "onto", "or", "other", "others", "otherwise", "our",
+        "ours", "ourselves", "out", "over", "own", "part", "per", "perhaps",
+        "please", "put", "rather", "re", "same", "see", "seem", "seemed",
+        "seeming", "seems", "serious", "several", "she", "should", "show", "side",
+        "since", "sincere", "six", "sixty", "so", "some", "somehow", "someone",
+        "something", "sometime", "sometimes", "somewhere", "still", "such",
+        "system", "take", "ten", "than", "that", "the", "their", "them",
+        "themselves", "then", "thence", "there", "thereafter", "thereby",
+        "therefore", "therein", "thereupon", "these", "they", "thick", "thin",
+        "third", "this", "those", "though", "three", "through", "throughout",
+        "thru", "thus", "to", "together", "too", "top", "toward", "towards",
+        "twelve", "twenty", "two", "un", "under", "until", "up", "upon", "us",
+        "very", "via", "was", "we", "well", "were", "what", "whatever", "when",
+        "whence", "whenever", "where", "whereafter", "whereas", "whereby",
+        "wherein", "whereupon", "wherever", "whether", "which", "while", "whither",
+        "who", "whoever", "whole", "whom", "whose", "why", "will", "with",
+        "within", "without", "would", "yet", "you", "your", "yours", "yourself",
+        "yourselves"])
+
+    input_directory = "../../data/20_news_groups"
+    vocabulary_path = os.path.join(input_directory, 'vocabulary_old.txt')
+    input_voc_stream = open(vocabulary_path, 'r')
+    vocab = []
+    for line in input_voc_stream:
+        vocab.append(line.strip().lower().split()[0])
+    new_vocab = set(vocab) - ENGLISH_STOP_WORDS
+    output_voc_stream = open(os.path.join(input_directory, 'vocabulary.txt'), 'w')
+    for item in new_vocab:
+        output_voc_stream.write("%s\n" % item)
