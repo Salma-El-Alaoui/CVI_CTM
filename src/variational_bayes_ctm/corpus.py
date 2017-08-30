@@ -50,6 +50,82 @@ class ToyDataset:
         self.doc_set = [" ".join(d) for d in list_docs]
 
 
+class ApDataset:
+    def __init__(self, shuffle=True, random_state=0, train_size=0.9):
+        input_directory = "../../data/ap"
+        vocabulary_path = os.path.join(input_directory, 'vocabulary.txt')
+        input_voc_stream = open(vocabulary_path, 'r')
+        vocab = []
+        for line in input_voc_stream:
+            vocab.append(line.strip().lower().split()[0])
+        self.vocabulary = list(set(vocab))
+        self.shuffle = shuffle
+        self.random_state = random_state
+        self.train_size = train_size
+
+        docs = []
+        input_file = open(os.path.join(input_directory, 'doc.dat'), 'r')
+        for line in input_file:
+            docs.append(line.strip())
+        print("successfully load all training documents...")
+
+        self.doc_set_train, self.doc_set_test = train_test_split(docs, train_size=self.train_size,
+                                                           random_state=self.random_state, shuffle=self.shuffle)
+
+
+class NipsDataset:
+    def __init__(self, shuffle=True, random_state=0, train_size=0.9):
+        input_directory = "../../data/nips-abstract"
+        vocabulary_path = os.path.join(input_directory, 'vocabulary.txt')
+        input_voc_stream = open(vocabulary_path, 'r')
+        vocab = []
+        for line in input_voc_stream:
+            vocab.append(line.strip().lower().split()[0])
+        self.vocabulary = list(set(vocab))
+        self.shuffle = shuffle
+        self.random_state = random_state
+        self.train_size = train_size
+
+        self.doc_set_train = []
+        input_file_train = open(os.path.join(input_directory, 'train.dat'), 'r')
+        for line in input_file_train:
+            self.doc_set_train.append(line.strip())
+
+        self.doc_set_test = []
+        input_file_test = open(os.path.join(input_directory, 'test.dat'), 'r')
+        for line in input_file_test:
+            self.doc_set_test.append(line.strip())
+
+        print("successfully load all training documents...")
+
+        #self.doc_set_train, self.doc_set_test = train_test_split(docs, train_size=self.train_size,
+        #                                                   random_state=self.random_state, shuffle=self.shuffle)
+
+
+class DeNewsDataset:
+
+    def __init__(self, shuffle=True, random_state=0, train_size=0.9):
+        input_directory = "../../data/de-news"
+        vocabulary_path = os.path.join(input_directory, 'vocabulary.txt')
+        input_voc_stream = open(vocabulary_path, 'r')
+        vocab = []
+        for line in input_voc_stream:
+            vocab.append(line.strip().lower().split()[0])
+        self.vocabulary = list(set(vocab))
+        self.shuffle = True
+        self.random_state = random_state
+        self.train_size = train_size
+
+        docs = []
+        input_file = open(os.path.join(input_directory, 'doc.dat'), 'r')
+        for line in input_file:
+            docs.append(line.strip())
+        print("successfully load all training documents...")
+
+        self.doc_set_train, self.doc_set_test = train_test_split(docs, train_size=self.train_size,
+                                                           random_state=self.random_state, shuffle=self.shuffle)
+
+
 class NewsDataset:
 
     def __init__(self, n_samples=None, shuffle=True, random_state=0, train_size=0.8):
@@ -93,7 +169,8 @@ class NewsDataset:
         doc = re.sub(r' +', ' ', doc)
         return doc
 
-if __name__ == "__main__":
+
+def remove_stop_words(input_directory="../../data/nips-abstract", old_vocab_file='voc.dat', new_vocab_file='vocabulary.txt'):
     ENGLISH_STOP_WORDS = frozenset([
         "a", "about", "above", "across", "after", "afterwards", "again", "against",
         "all", "almost", "alone", "along", "already", "also", "although", "always",
@@ -137,13 +214,17 @@ if __name__ == "__main__":
         "within", "without", "would", "yet", "you", "your", "yours", "yourself",
         "yourselves"])
 
-    input_directory = "../../data/20_news_groups"
-    vocabulary_path = os.path.join(input_directory, 'vocabulary_old.txt')
+    vocabulary_path = os.path.join(input_directory, old_vocab_file)
     input_voc_stream = open(vocabulary_path, 'r')
     vocab = []
     for line in input_voc_stream:
         vocab.append(line.strip().lower().split()[0])
     new_vocab = set(vocab) - ENGLISH_STOP_WORDS
-    output_voc_stream = open(os.path.join(input_directory, 'vocabulary.txt'), 'w')
+    output_voc_stream = open(os.path.join(input_directory, new_vocab_file), 'w')
     for item in new_vocab:
         output_voc_stream.write("%s\n" % item)
+
+
+if __name__ == "__main__":
+    pass
+
