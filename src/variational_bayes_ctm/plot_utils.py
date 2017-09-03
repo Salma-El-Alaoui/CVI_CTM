@@ -7,7 +7,7 @@ def plot_pp_train_per(x, inspectors, models):
     for insp in inspectors:
         plt.plot(x * 100, insp, lw=2)
         plt.xlabel("% of observed documents")
-        plt.ylabel("log-predictive perplexity")
+        plt.ylabel("log-likelihood per word")
     plt.legend(models)
     plt.show()
 
@@ -26,6 +26,18 @@ def plot_precision_recall(precision, recall, average_precision):
               .format(average_precision["micro"]))
     plt.show()
 
+def plot_accuracy_topics(topics, inspectors, models):
+    sns.set()
+    for insp in inspectors:
+        plt.plot(topics, insp, lw=2)
+        plt.xlabel("Number of Topics")
+        plt.ylabel("Classification Accuracy")
+    plt.legend(models)
+    plt.show()
+
+
+
+
 if __name__ == "__main__":
     test_ctm = [-10.344016397834826, -9.2053581737863919, -8.8249573482824655, -8.4925241672434559, -8.2968172657881869,
                 -8.1419220706265509, -8.01474055832246, -8.0486872454118004, -8.0143044685818641]
@@ -33,4 +45,11 @@ if __name__ == "__main__":
     test_lda = [-9.6904686306093062, -9.6407050609641107, -9.5485135718130945, -9.4531017577657579, -9.3893403512526241,
                 -9.358140637869635, -9.3558844865670956, -9.2661561741099732, -9.2425589114371469]
 
-    plot_pp_train_per(np.linspace(0.2, 0.9, num=8), [test_ctm[1:], test_lda[1:]], ["CTM", "LDA"])
+    accuracy_ctm = [0.22, 0.44, 0.49, 0.49, 0.51, 0.5, 0.49]
+
+    accuracy_lda = [0.22, 0.34, 0.35, 0.37, 0.38, 0.37, 0.33]
+
+    models = ["CTM", "LDA"]
+
+    #plot_accuracy_topics(np.linspace(10, 80, num=7), [accuracy_ctm, accuracy_lda], models)
+    plot_pp_train_per(np.linspace(0.2, 0.9, num=8), [test_ctm[1:], test_lda[1:]], models)
