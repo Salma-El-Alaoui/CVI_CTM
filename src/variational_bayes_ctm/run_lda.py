@@ -521,6 +521,7 @@ def classification_lda(K, data=NewsDataset(), perform_class=True, train_index=No
 def cross_validation(K):
     dataset = NewsDataset()
     accuracies_split = []
+    print("number of topics", K)
     for train_index, test_index in dataset.splits:
         print("================= new split =================")
         gamma_train, gamma_test, y_train, y_test = classification_lda(K, data=dataset, perform_class=False,
@@ -604,7 +605,7 @@ if __name__ == "__main__":
     # perplexity_lda_topics(topic_numbers=topics, train_size=train_size, dataset=d)
     #perplexity_lda(K=k, dataset=d, train_sizes=train)
     #classification_lda(K=15)
-    cross_validation(30)
+    cross_validation(35)
 
 
 
