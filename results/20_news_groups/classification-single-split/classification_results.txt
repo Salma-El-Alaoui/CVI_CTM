@@ -1,0 +1,41 @@
+10:
+CTM
+log-perplexity: -9.1032
+C = 2, Accuracy = 0.22
+
+20:
+CTM
+log-perplexity: -8.01430
+C = 5, Accuracy = 0.443636363636
+
+
+30:
+CTM
+log-perplexity: -7.9437
+C = 1, Accuracy = 0.499090909091
+
+40
+CTM
+log-perplexity: -8.0272
+C = 2, Accuracy = 0.484545454545
+
+
+50
+CTM
+log-perplexity: -8.0502
+C = 1, Accuracy = 0.508181818182
+
+60
+CTM
+log-perplexity: -8.1653
+C = 1 , Accuracy = 0.5
+
+70
+CTM
+log-perplexity: -8.3273
+C = 1, 0.51
+
+80
+CTM
+log-perplexity: -8.4042
+C = 5, Accuracy = 0.49

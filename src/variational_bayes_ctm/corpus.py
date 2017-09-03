@@ -5,6 +5,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 import re
 import os
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold
 
 class ToyDataset:
 
@@ -63,13 +64,13 @@ class ApDataset:
         self.random_state = random_state
         self.train_size = train_size
 
-        docs = []
+        self.docs = []
         input_file = open(os.path.join(input_directory, 'doc.dat'), 'r')
         for line in input_file:
-            docs.append(line.strip())
+            self.docs.append(line.strip())
         print("successfully load all training documents...")
 
-        self.doc_set_train, self.doc_set_test = train_test_split(docs, train_size=self.train_size,
+        self.doc_set_train, self.doc_set_test = train_test_split(self.docs, train_size=self.train_size,
                                                            random_state=self.random_state, shuffle=self.shuffle)
 
 
@@ -86,21 +87,14 @@ class NipsDataset:
         self.random_state = random_state
         self.train_size = train_size
 
-        self.doc_set_train = []
-        input_file_train = open(os.path.join(input_directory, 'train.dat'), 'r')
-        for line in input_file_train:
-            self.doc_set_train.append(line.strip())
-
-        self.doc_set_test = []
-        input_file_test = open(os.path.join(input_directory, 'test.dat'), 'r')
-        for line in input_file_test:
-            self.doc_set_test.append(line.strip())
-
+        self.docs = []
+        input_file = open(os.path.join(input_directory, 'doc.dat'), 'r')
+        for line in input_file:
+            self.docs.append(line.strip())
         print("successfully load all training documents...")
 
-        #self.doc_set_train, self.doc_set_test = train_test_split(docs, train_size=self.train_size,
-        #                                                   random_state=self.random_state, shuffle=self.shuffle)
-
+        self.doc_set_train, self.doc_set_test = train_test_split(self.docs, train_size=self.train_size,
+                                                                 random_state=self.random_state, shuffle=self.shuffle)
 
 class DeNewsDataset:
 
@@ -112,17 +106,17 @@ class DeNewsDataset:
         for line in input_voc_stream:
             vocab.append(line.strip().lower().split()[0])
         self.vocabulary = list(set(vocab))
-        self.shuffle = True
+        self.shuffle = shuffle
         self.random_state = random_state
         self.train_size = train_size
 
-        docs = []
+        self.docs = []
         input_file = open(os.path.join(input_directory, 'doc.dat'), 'r')
         for line in input_file:
-            docs.append(line.strip())
+            self.docs.append(line.strip())
         print("successfully load all training documents...")
 
-        self.doc_set_train, self.doc_set_test = train_test_split(docs, train_size=self.train_size,
+        self.doc_set_train, self.doc_set_test = train_test_split(self.docs, train_size=self.train_size,
                                                            random_state=self.random_state, shuffle=self.shuffle)
 
 
@@ -136,7 +130,7 @@ class NewsDataset:
         for line in input_voc_stream:
             vocab.append(line.strip().lower().split()[0])
         self.vocabulary = list(set(vocab))
-        self.shuffle = True
+        self.shuffle = shuffle
         self.random_state = random_state
         self.train_size = train_size
 
@@ -152,14 +146,18 @@ class NewsDataset:
         self.targets = dataset.target[:n_samples]
         self.target_names = dataset.target_names[:n_samples]
 
-        vectorizer = CountVectorizer(max_df=0.95, min_df=2, vocabulary=vocab, preprocessor=self.preprocessor)
-        self.X = vectorizer.fit_transform(self.raw_samples)
+        self.vectorizer = CountVectorizer(max_df=0.95, min_df=2, vocabulary=vocab, preprocessor=self.preprocessor)
+        self.X = self.vectorizer.fit_transform(self.raw_samples)
         self.X_train, self.X_test, self.y_train, self.y_test =\
-            train_test_split(self.X, self.targets, train_size=self.train_size, random_state=self.random_state)
-        self.doc_set_train = [" ".join(d) for d in vectorizer.inverse_transform(self.X_train)]
-        self.doc_set_test = [" ".join(d) for d in vectorizer.inverse_transform(self.X_test)]
-        self.doc_train_list = [d.tolist() for d in vectorizer.inverse_transform(self.X_train)]
-        self.doc_test_list = [d.tolist() for d in vectorizer.inverse_transform(self.X_test)]
+            train_test_split(self.X, self.targets, train_size=self.train_size, random_state=self.random_state,
+                             stratify=self.targets)
+        self.docs = [" ".join(d) for d in self.vectorizer.inverse_transform(self.X)]
+        skf = StratifiedKFold(n_splits=5, random_state=0)
+        self. splits = skf.split(self.X, self.targets)
+        self.doc_set_train = [" ".join(d) for d in self.vectorizer.inverse_transform(self.X_train)]
+        self.doc_set_test = [" ".join(d) for d in self.vectorizer.inverse_transform(self.X_test)]
+        self.doc_train_list = [d.tolist() for d in self.vectorizer.inverse_transform(self.X_train)]
+        self.doc_test_list = [d.tolist() for d in self.vectorizer.inverse_transform(self.X_test)]
 
     @staticmethod
     def preprocessor(doc):
@@ -226,5 +224,14 @@ def remove_stop_words(input_directory="../../data/nips-abstract", old_vocab_file
 
 
 if __name__ == "__main__":
-    pass
-
+    X = np.array([[1, 2], [3, 4], [1, 2], [3, 4]])
+    y = np.array([0, 0, 1, 1])
+    skf = StratifiedKFold(n_splits=2)
+    StratifiedKFold(n_splits=2, random_state=None, shuffle=False)
+    for train_index, test_index in skf.split(X, y):
+        print("TRAIN:", train_index, "TEST:", test_index)
+        print(type(train_index))
+        X_train, X_test = X[train_index], X[test_index]
+        print(X_train, X_test)
+        y = y.tolist()
+        y_train, y_test = y[train_index], y[test_index]
