@@ -1,17 +1,22 @@
 from corpus import ToyDataset, NewsDataset
 from ctm import CTM
-from sklearn.decomposition import LatentDirichletAllocation
+# from sklearn.decomposition import LatentDirichletAllocation
 import numpy as np
 from sklearn import svm
-from sklearn.preprocessing import label_binarize
-from sklearn.multiclass import OneVsRestClassifier
-from sklearn.metrics import precision_recall_curve
-from sklearn.metrics import average_precision_score
-from plot_utils import plot_precision_recall
-from sklearn.model_selection import cross_val_score
+# from sklearn.preprocessing import label_binarize
+# from sklearn.multiclass import OneVsRestClassifier
+# from sklearn.metrics import precision_recall_curve
+# from sklearn.metrics import average_precision_score
+# from plot_utils import plot_precision_recall
+# from sklearn.model_selection import cross_val_score
 import os
+
+
 def classification(number_topics, data=NewsDataset(), train_index=None, test_index=None, save=True, perform_class=True):
-    output_directory = "../../results/20_news_groups/classification"
+    output_directory = "../../results/20_news_groups/classification-single-split"
+    if not os.path.exists(output_directory):
+        os.mkdir(output_directory)
+
     print("Number Topics", number_topics)
 
     if train_index is None:
@@ -36,13 +41,13 @@ def classification(number_topics, data=NewsDataset(), train_index=None, test_ind
         ctm = CTM(corpus=doc_set_train, vocab=data.vocabulary, number_of_topics=number_topics)
         _, perplexity = ctm.fit()
         document_log_likelihood, perplexity, lambda_values, nu_square_values = ctm.predict(doc_set_test)
+        lambda_values_train = ctm._lambda
+        nus_values_train = ctm._nu_square
         if train_index is None:
             np.savetxt(lambda_train_name, ctm._lambda)
             np.savetxt(nus_train_name, ctm._nu_square)
             np.savetxt(lambda_test_name, lambda_values)
             np.savetxt(nus_test_name, nu_square_values)
-            lambda_values_train = ctm._lambda
-            nus_values_train = ctm._nu_square
     else:
         lambda_values_train = np.loadtxt(lambda_train_name)
         nus_values_train = np.loadtxt(nus_train_name)
@@ -50,12 +55,12 @@ def classification(number_topics, data=NewsDataset(), train_index=None, test_ind
         nu_square_values = np.loadtxt(nus_test_name)
 
     y_train = list()
-    for i, doc in enumerate(data.doc_set_train):
+    for i, doc in enumerate(doc_set_train):
         if doc != '':
             y_train.append(y_train_full[i])
 
     y_test = list()
-    for i, doc in enumerate(data.doc_set_test):
+    for i, doc in enumerate(doc_set_test):
         if doc != '':
             y_test.append(y_test_full[i])
 
@@ -98,7 +103,7 @@ def classification(number_topics, data=NewsDataset(), train_index=None, test_ind
         # avg_load = np.load(avg_name).item()
 
         # plot_precision_recall(prec_load, rec_load, avg_load)
-        return lambda_values_train, lambda_values, y_train, y_test
+    return lambda_values_train, lambda_values, y_train, y_test
 
 
 def cross_validation(K):
@@ -126,4 +131,10 @@ def cross_validation(K):
     print("STD", np.std(arr_accuracy))
 
 if __name__ == "__main__":
-    cross_validation(20)
+    import sys
+
+    n_topics = 20
+    if len(sys.argv) > 1:
+        n_topics = int(sys.argv[1])
+
+    cross_validation(n_topics)     # 20, 30, 40, 35, 25

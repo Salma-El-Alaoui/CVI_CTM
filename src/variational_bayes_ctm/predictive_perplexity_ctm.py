@@ -1,10 +1,7 @@
 from corpus import ToyDataset, NewsDataset, ApDataset
 from ctm import CTM
-from sklearn.decomposition import LatentDirichletAllocation
 import numpy as np
 import os
-import gensim
-import logging
 
 
 def perplexity_ctm(train_sizes, dataset, number_topics, save=False, output_directory=None):

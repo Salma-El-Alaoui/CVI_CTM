@@ -28,6 +28,7 @@ from sklearn.model_selection import cross_val_score
 
 
 meanchangethresh = 0.001
+n.random.seed(100000001)
 
 
 def dirichlet_expectation(alpha):
@@ -595,26 +596,18 @@ def perplexity_lda_topics(topic_numbers, train_size, dataset):
     print("Train LDA: ", perplexities_tr)
     print("Test LDA ", perplexities_te)
 
+
 if __name__ == "__main__":
     # d = ApDataset
     # print("DATASET", d.__name__)
+
     # k = 5
     # train = n.linspace(0.1, 0.5, num=9)
+    # perplexity_lda(K=k, dataset=d, train_sizes=train)
+
     # topics = [5, 8, 10, 15, 20, 25, 30, 35, 40]
     # train_size = 0.9
     # perplexity_lda_topics(topic_numbers=topics, train_size=train_size, dataset=d)
-    #perplexity_lda(K=k, dataset=d, train_sizes=train)
-    #classification_lda(K=15)
-    cross_validation(35)
 
-
-
-
-
-
-
-
-
-
-
-
+    # classification_lda(K=15)
+    cross_validation(50)
