@@ -302,7 +302,7 @@ class CTM:
                 # doc_nu_square = self.optimize_doc_nu_square(doc_nu_square, arguments);
                 doc_nu_square = self.optimize_doc_nu_square_in_log_space(doc_nu_square, arguments)
 
-                # update zeta in close form;
+                # update zeta in close form
                 doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
                 doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
@@ -376,5 +376,19 @@ class CTM:
         perplexity = document_log_likelihood / normalizer
         print('heldout log-likelihood: %.4f, heldout log-perplexity: %.4f' % (document_log_likelihood, perplexity))
         return document_log_likelihood, perplexity, lambda_values, nu_square_values
+
+    def export_beta(self, exp_beta_path, top_display=-1):
+        output = open(exp_beta_path, 'w')
+        E_log_eta = compute_dirichlet_expectation(self._eta)
+        for topic_index in range(self._number_of_topics):
+            output.write("==========\t%d\t==========\n" % (topic_index))
+            beta_probability = np.exp(E_log_eta[topic_index, :] - sp.misc.logsumexp(E_log_eta[topic_index, :]))
+            i = 0
+            for type_index in reversed(np.argsort(beta_probability)):
+                i += 1
+                output.write("%s\t%g\n" % (self._index_to_type[type_index], beta_probability[type_index]))
+                if top_display > 0 and i >= top_display:
+                    break
+        output.close()
 
 
