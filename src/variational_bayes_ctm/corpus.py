@@ -69,6 +69,8 @@ class ApDataset:
         for line in input_file:
             self.docs.append(line.strip())
         print("successfully load all training documents...")
+        #print("Number documents", len(self.docs))
+        #print("Number of unique words", len(self.vocabulary))
 
         self.doc_set_train, self.doc_set_test = train_test_split(self.docs, train_size=self.train_size,
                                                            random_state=self.random_state, shuffle=self.shuffle)
@@ -115,6 +117,8 @@ class DeNewsDataset:
         for line in input_file:
             self.docs.append(line.strip())
         print("successfully load all training documents...")
+        #print("Number documents", len(self.docs))
+        #print("Number of unique words", len(self.vocabulary))
 
         self.doc_set_train, self.doc_set_test = train_test_split(self.docs, train_size=self.train_size,
                                                            random_state=self.random_state, shuffle=self.shuffle)
@@ -152,6 +156,8 @@ class NewsDataset:
             train_test_split(self.X, self.targets, train_size=self.train_size, random_state=self.random_state,
                              stratify=self.targets)
         self.docs = [" ".join(d) for d in self.vectorizer.inverse_transform(self.X)]
+        #print("Number documents", len(self.docs))
+        #print("Number of unique words", len(self.vocabulary))
         skf = StratifiedKFold(n_splits=5, random_state=0)
         self. splits = skf.split(self.X, self.targets)
         self.doc_set_train = [" ".join(d) for d in self.vectorizer.inverse_transform(self.X_train)]
@@ -224,14 +230,5 @@ def remove_stop_words(input_directory="../../data/nips-abstract", old_vocab_file
 
 
 if __name__ == "__main__":
-    X = np.array([[1, 2], [3, 4], [1, 2], [3, 4]])
-    y = np.array([0, 0, 1, 1])
-    skf = StratifiedKFold(n_splits=2)
-    StratifiedKFold(n_splits=2, random_state=None, shuffle=False)
-    for train_index, test_index in skf.split(X, y):
-        print("TRAIN:", train_index, "TEST:", test_index)
-        print(type(train_index))
-        X_train, X_test = X[train_index], X[test_index]
-        print(X_train, X_test)
-        y = y.tolist()
-        y_train, y_test = y[train_index], y[test_index]
+    ap = ApDataset()
+

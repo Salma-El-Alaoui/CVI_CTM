@@ -6,6 +6,7 @@ from scipy.misc import logsumexp
 import scipy as sp
 import os
 
+
 def compute_dirichlet_expectation(dirichlet_parameter):
     if len(dirichlet_parameter.shape) == 1:
         return psi(dirichlet_parameter) - psi(np.sum(dirichlet_parameter))
@@ -15,7 +16,7 @@ def compute_dirichlet_expectation(dirichlet_parameter):
 class CTM_CVI:
     def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None,
                  scipy_optimization_method="L-BFGS-B", em_max_iter=100, em_convergence=1e-03, step_size=0.7,
-                 local_param_ier=50):
+                 local_param_iter=50):
 
         self.parse_vocabulary(vocab)
         # initialize the size of the vocabulary, i.e. total number of distinct tokens.
@@ -55,7 +56,7 @@ class CTM_CVI:
         self._scipy_optimization_method = scipy_optimization_method
         self._em_max_iter = em_max_iter
         self._em_convergence = em_convergence
-        self._local_param_iter = local_param_ier
+        self._local_param_iter = local_param_iter
 
     def parse_vocabulary(self, vocab):
         self._type_to_index = {}
@@ -256,7 +257,6 @@ class CTM_CVI:
                                (sp.special.gammaln(np.sum(self._alpha_beta)) - np.sum(gammaln(self._alpha_beta)))
         # compute the eta terms
         topic_log_likelihood += np.sum(np.sum(gammaln(self._eta), axis=1) - gammaln(np.sum(self._eta, axis=1)))
-
         self._eta = phi_suff_stats + self._alpha_beta
         return topic_log_likelihood
 
