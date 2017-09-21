@@ -14,7 +14,8 @@ def compute_dirichlet_expectation(dirichlet_parameter):
 
 class CTM_CVI:
     def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None,
-                 scipy_optimization_method="L-BFGS-B", em_max_iter=100, em_convergence=1e-03):
+                 scipy_optimization_method="L-BFGS-B", em_max_iter=100, em_convergence=1e-03, step_size=0.7,
+                 local_param_ier=50):
 
         self.parse_vocabulary(vocab)
         # initialize the size of the vocabulary, i.e. total number of distinct tokens.
@@ -24,6 +25,8 @@ class CTM_CVI:
         self._parsed_corpus = self.parse_data()
         # define the total number of document
         self._number_of_documents = len(self._parsed_corpus[0])
+
+        self.step_size = step_size
 
         # initialize the total number of topics.
         self._number_of_topics = number_of_topics
@@ -52,6 +55,7 @@ class CTM_CVI:
         self._scipy_optimization_method = scipy_optimization_method
         self._em_max_iter = em_max_iter
         self._em_convergence = em_convergence
+        self._local_param_iter = local_param_ier
 
     def parse_vocabulary(self, vocab):
         self._type_to_index = {}
@@ -258,20 +262,21 @@ class CTM_CVI:
 
     def em_step(self):
         self._counter += 1
-        clock_e_step = time.time()
+        clock_e_step = time.process_time()
         document_log_likelihood, phi_sufficient_statistics = self.e_step()
-        clock_e_step = time.time() - clock_e_step
+        clock_e_step = time.process_time() - clock_e_step
 
-        clock_m_step = time.time()
+        clock_m_step = time.process_time()
         topic_log_likelihood = self.m_step(phi_sufficient_statistics)
-        clock_m_step = time.time() - clock_m_step
+        clock_m_step = time.process_time() - clock_m_step
 
         joint_log_likelihood = document_log_likelihood + topic_log_likelihood
         # print(" E step  of iteration %d finished in %g seconds " % (self._counter, clock_e_step))
         # print(" M step of iteration %d finished in %g seconds" % (self._counter, clock_e_step))
-        return joint_log_likelihood[0][0]
+        total_time = clock_e_step + clock_m_step
+        return joint_log_likelihood[0][0], total_time
 
-    def e_step(self, local_parameter_iteration=10, corpus=None):
+    def e_step(self, corpus=None):
 
         if corpus is None:
             word_ids = self._parsed_corpus[0]
@@ -319,8 +324,11 @@ class CTM_CVI:
             doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
             doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
-            for local_parameter_iteration_index in range(local_parameter_iteration):
+            for local_parameter_iteration_index in range(self._local_param_iter):
                 # update phi in close form
+                #cvi
+                #add kappa update
+
                 log_phi = E_log_eta[:, term_ids] + doc_lambda[:, np.newaxis]
                 log_phi -= logsumexp(log_phi, axis=0)[np.newaxis, :]
 
@@ -343,9 +351,8 @@ class CTM_CVI:
 
                 # CVI
                 # update lambda and nu square
-                step_size = 0.5
                 sum_phi = np.exp(logsumexp(log_phi + np.log(term_counts), axis=1))
-                arguments = (doc_zeta_factor, sum_phi, doc_word_count, step_size)
+                arguments = (doc_zeta_factor, sum_phi, doc_word_count, self.step_size)
                 doc_lambda, doc_nu_square, doc_nat_param_1, doc_nat_param_2 = \
                     self.cvi_gaussian_update(doc_lambda, doc_nu_square, doc_nat_param_1, doc_nat_param_2, *arguments)
 
@@ -385,6 +392,7 @@ class CTM_CVI:
 
             lambda_values[doc_id, :] = doc_lambda
             nu_square_values[doc_id, :] = doc_nu_square
+
             #CVI
             nat_param_1_values[doc_id, :] = doc_nat_param_1
             nat_param_2_values[doc_id, :] = doc_nat_param_2
@@ -405,28 +413,65 @@ class CTM_CVI:
         word_cts = self._parsed_corpus[1]
         normalizer = sum([np.sum(a) for a in word_cts])
         old_log_likelihood = np.finfo(np.float32).min
+        old_perplexity = old_log_likelihood/normalizer
+        convergences = list()
         for i in range(self._em_max_iter):
-            log_likelihood = self.em_step()
+            log_likelihood, time = self.em_step()
             perplexity = log_likelihood / normalizer
             convergence = np.abs((log_likelihood - old_log_likelihood) / old_log_likelihood)
-            if convergence < self._em_convergence:
+            convergences.append(convergence)
+            if len(convergences) >= 1:
+                av_conv = np.mean(np.asarray(convergences[-1:]))
+            else:
+                av_conv = np.mean(np.asarray(convergences))
+            if av_conv < self._em_convergence:
                 print('Converged after %d iterations, final log-likelihood: %.4f, final perplexity: %.4f'
                       % (i + 1, log_likelihood, perplexity))
                 break
             old_log_likelihood = log_likelihood
             print('iteration: %d, log-likelihood: %.4f, log-perplexity: %.4f, convergence: %.4f'
-                  % (i + 1, log_likelihood, perplexity, convergence))
+                  % (i + 1, log_likelihood, perplexity, av_conv))
         return log_likelihood, perplexity
 
-    def predict(self, test_corpus, var_iter=10):
+    def predict(self, test_corpus):
         parsed_corpus = self.parse_data(test_corpus)
         normalizer = sum([np.sum(a) for a in parsed_corpus[1]])
-        clock_e_step = time.time()
-        document_log_likelihood, lambda_values, nu_square_values = self.e_step(corpus=parsed_corpus, local_parameter_iteration=var_iter)
-        clock_e_step = time.time() - clock_e_step
+        clock_e_step = time.process_time()
+        document_log_likelihood, lambda_values, nu_square_values = self.e_step(corpus=parsed_corpus)
+        clock_e_step = time.process_time() - clock_e_step
         perplexity = document_log_likelihood / normalizer
         print('heldout log-likelihood: %.4f, heldout log-perplexity: %.4f' % (document_log_likelihood, perplexity))
         return document_log_likelihood, perplexity, lambda_values, nu_square_values
+
+    def fit_predict(self, test_corpus):
+        parsed_corpus_test = self.parse_data(test_corpus)
+        normalizer_test = sum([np.sum(a) for a in parsed_corpus_test[1]])
+
+        word_cts = self._parsed_corpus[1]
+        normalizer = sum([np.sum(a) for a in word_cts])
+        old_log_likelihood = np.finfo(np.float32).min
+
+        lls_train = list()
+        lls_test = list()
+        times = list()
+
+        for i in range(self._em_max_iter):
+            log_likelihood, time = self.em_step()
+            perplexity = log_likelihood / normalizer
+            convergence = np.abs((log_likelihood - old_log_likelihood) / old_log_likelihood)
+            times.append(time)
+            lls_train.append(perplexity)
+            old_log_likelihood = log_likelihood
+            print('iteration: %d, log-likelihood: %.4f, log-perplexity: %.4f, convergence: %.4f, time: %.4f'
+                  % (i + 1, log_likelihood, perplexity, convergence, time))
+
+            document_log_likelihood_test, _, _ = self.e_step(corpus=parsed_corpus_test)
+            perplexity_test = document_log_likelihood_test / normalizer_test
+            lls_test.append(perplexity_test)
+            print('heldout log-likelihood: %.4f, heldout log-perplexity: %.4f' % (document_log_likelihood_test,
+                                                                                  perplexity_test))
+
+        return lls_train, lls_test, times
 
     def export_beta(self, exp_beta_path, top_display=-1):
         output = open(exp_beta_path, 'w')
