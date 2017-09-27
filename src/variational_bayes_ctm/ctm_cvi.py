@@ -21,61 +21,6 @@ class CTM_CVI(CTM):
                          em_max_iter=em_max_iter, em_convergence=em_convergence, local_param_iter=local_param_iter)
         self.step_size = step_size
 
-    def optimize_doc_lambda(self, doc_lambda, arguments):
-
-        optimize_result = sp.optimize.minimize(self.f_doc_lambda,
-                                               doc_lambda,
-                                               args=arguments,
-                                               method=self._scipy_optimization_method,
-                                               jac=self.f_prime_doc_lambda,
-                                               # hess=self.f_hessian_doc_lambda,
-                                               # hessp=self.f_hessian_direction_doc_lambda,
-                                               bounds=None,
-                                               constraints=(),
-                                               tol=None,
-                                               callback=None,
-                                               options={'disp': False, 'gtol': 1e-06})
-        return optimize_result.x
-
-    def f_doc_lambda(self, doc_lambda, *args):
-        (doc_nu_square, doc_zeta_factor, sum_phi, total_word_count) = args
-
-        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis],
-                                      axis=1)
-        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta);
-
-        function_doc_lambda = np.sum(sum_phi * doc_lambda);
-
-        if self._diagonal_covariance_matrix:
-            mean_adjustment = doc_lambda - self._alpha_mu
-            function_doc_lambda += -0.5 * np.sum((mean_adjustment ** 2) / self._alpha_sigma)
-        else:
-            mean_adjustment = doc_lambda[np.newaxis, :] - self._alpha_mu
-            function_doc_lambda += -0.5 * np.dot(np.dot(mean_adjustment, self._alpha_sigma_inv), mean_adjustment.T)
-
-        function_doc_lambda += -total_word_count * np.sum(exp_over_doc_zeta)
-
-        return np.asscalar(-function_doc_lambda)
-
-    def f_prime_doc_lambda(self, doc_lambda, *args):
-        (doc_nu_square, doc_zeta_factor, sum_phi, total_word_count) = args
-
-        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis],
-                                      axis=1)
-        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta)
-        assert exp_over_doc_zeta.shape == (self._number_of_topics,)
-
-        if self._diagonal_covariance_matrix:
-            function_prime_doc_lambda = (self._alpha_mu - doc_lambda) / self._alpha_sigma
-        else:
-            function_prime_doc_lambda = np.dot((self._alpha_mu - doc_lambda[np.newaxis, :]), self._alpha_sigma_inv)[0,
-                                        :]
-
-        function_prime_doc_lambda += sum_phi
-        function_prime_doc_lambda -= 0.5 * total_word_count * exp_over_doc_zeta
-
-        return np.asarray(-function_prime_doc_lambda)
-
     def cvi_gaussian_update(self, doc_lambda, doc_nu_square, doc_nat_param_1, doc_nat_param_2, *args):
 
         (doc_zeta_factor, sum_phi, total_word_count, step_size) = args
@@ -106,66 +51,6 @@ class CTM_CVI(CTM):
         new_doc_nu_square = -1 / (2 * new_doc_nat_param_2)
 
         return new_doc_lambda, new_doc_nu_square, new_doc_nat_param_1, new_doc_nat_param_2
-
-    def optimize_doc_nu_square_in_log_space(self, doc_nu_square, arguments, method_name=None):
-        log_doc_nu_square = np.log(doc_nu_square)
-        optimize_result = sp.optimize.minimize(self.f_log_doc_nu_square,
-                                               log_doc_nu_square,
-                                               args=arguments,
-                                               method=method_name,
-                                               jac=self.f_prime_log_doc_nu_square,
-                                               # hess=self.f_hessian_log_doc_nu_square,
-                                               # hessp=self.f_hessian_direction_log_doc_nu_square,
-                                               bounds=None,
-                                               constraints=(),
-                                               tol=None,
-                                               callback=None,
-                                               options={'disp': False, 'gtol': 1e-06})
-
-        log_doc_nu_square_update = optimize_result.x
-
-        return np.exp(log_doc_nu_square_update)
-
-    def f_doc_nu_square(self, doc_nu_square, *args):
-        (doc_lambda, doc_zeta_factor, total_word_count) = args
-
-        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis],
-                                      axis=1)
-        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta)
-
-        function_doc_nu_square = 0.5 * np.sum(np.log(doc_nu_square))
-
-        if self._diagonal_covariance_matrix:
-            function_doc_nu_square += -0.5 * np.sum(doc_nu_square / self._alpha_sigma)
-        else:
-            function_doc_nu_square += -0.5 * np.sum(doc_nu_square * np.diag(self._alpha_sigma_inv))
-
-        function_doc_nu_square += -total_word_count * np.sum(exp_over_doc_zeta)
-
-        return np.asscalar(-function_doc_nu_square)
-
-    def f_log_doc_nu_square(self, log_doc_nu_square, *args):
-        return self.f_doc_nu_square(np.exp(log_doc_nu_square), *args)
-
-    def f_prime_log_doc_nu_square(self, log_doc_nu_square, *args):
-        (doc_lambda, doc_zeta_factor, total_word_count) = args
-
-        exp_log_doc_nu_square = np.exp(log_doc_nu_square)
-
-        exp_over_doc_zeta = sp.misc.logsumexp(
-            doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * exp_log_doc_nu_square[:, np.newaxis], axis=1)
-        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta)
-
-        if self._diagonal_covariance_matrix:
-            function_prime_log_doc_nu_square = -0.5 * exp_log_doc_nu_square / self._alpha_sigma
-        else:
-            function_prime_log_doc_nu_square = -0.5 * exp_log_doc_nu_square * np.diag(self._alpha_sigma_inv)
-        function_prime_log_doc_nu_square += 0.5
-        function_prime_log_doc_nu_square -= 0.5 * total_word_count * exp_over_doc_zeta * exp_log_doc_nu_square
-
-        assert function_prime_log_doc_nu_square.shape == (self._number_of_topics,)
-
-        return np.asarray(-function_prime_log_doc_nu_square)
 
     def m_step(self, phi_suff_stats):
         # compute the beta terms
@@ -253,17 +138,17 @@ class CTM_CVI(CTM):
                     # update lambda
                     sum_phi = np.exp(logsumexp(log_phi + np.log(term_counts), axis=1))
                     arguments = (doc_nu_square, doc_zeta_factor, sum_phi, doc_word_count)
-                    doc_lambda = self.optimize_doc_lambda(doc_lambda, arguments)
+                    doc_lambda = super().optimize_doc_lambda(doc_lambda, arguments)
 
                     # update zeta in close form
-                    # doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square));
+                    # doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square))
                     doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
                     doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
                     # update nu_square
                     arguments = (doc_lambda, doc_zeta_factor, doc_word_count)
-                    # doc_nu_square = self.optimize_doc_nu_square(doc_nu_square, arguments);
-                    doc_nu_square = self.optimize_doc_nu_square_in_log_space(doc_nu_square, arguments)
+                    # doc_nu_square = self.optimize_doc_nu_square(doc_nu_square, arguments)
+                    doc_nu_square = super().optimize_doc_nu_square_in_log_space(doc_nu_square, arguments)
 
                 # CVI
                 # update lambda and nu square
@@ -314,9 +199,6 @@ class CTM_CVI(CTM):
             nat_param_2_values[doc_id, :] = doc_nat_param_2
 
             phi_sufficient_statistics[:, term_ids] += np.exp(log_phi + np.log(term_counts))
-
-            #if (doc_id + 1) % 1000 == 0:
-            #    print("successfully processed %d documents..." % (doc_id + 1))
 
         if corpus is None:
             self._lambda = lambda_values
