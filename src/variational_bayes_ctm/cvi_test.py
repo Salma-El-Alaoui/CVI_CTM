@@ -1,6 +1,6 @@
-from corpus import ToyDataset, NewsDataset, ApDataset
-from ctm_cvi import CTM_CVI
-from ctm import CTM
+from src.variational_bayes_ctm.corpus import ToyDataset, NewsDataset, ApDataset
+from src.variational_bayes_ctm.ctm_cvi import CTM_CVI
+from src.variational_bayes_ctm.ctm import CTM
 import numpy as np
 import os
 
