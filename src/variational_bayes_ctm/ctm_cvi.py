@@ -1,6 +1,5 @@
 import numpy as np
 import time
-from scipy.special import psi, gammaln
 from scipy.misc import logsumexp
 import scipy as sp
 from src.variational_bayes_ctm.ctm import CTM, compute_dirichlet_expectation
@@ -97,9 +96,6 @@ class CTM_CVI(CTM):
 
             for local_parameter_iteration_index in range(self._local_param_iter):
                 # update phi in close form
-                # cvi
-                # add kappa update
-
                 log_phi = E_log_eta[:, term_ids] + doc_lambda[:, np.newaxis]
                 log_phi -= logsumexp(log_phi, axis=0)[np.newaxis, :]
 

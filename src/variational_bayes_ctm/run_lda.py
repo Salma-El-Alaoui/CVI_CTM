@@ -1,6 +1,3 @@
-
-
-
 # onlineldavb.py: Package of functions for fitting Latent Dirichlet
 # Allocation (LDA) with online variational Bayes (VB).
 #
@@ -24,8 +21,6 @@ import numpy as n
 from scipy.special import gammaln, psi
 from corpus import ToyDataset, NewsDataset, ApDataset, DeNewsDataset, NipsDataset
 from sklearn import svm
-from sklearn.model_selection import cross_val_score
-
 
 meanchangethresh = 0.001
 n.random.seed(100000001)
@@ -214,57 +209,6 @@ class OnlineLDA:
 
         return self.do_e_step(wordids, wordcts)
 
-    #         batchD = len(docs)
-
-    #         # Initialize the variational distribution q(theta|gamma) for
-    #         # the mini-batch
-    #         gamma = 1*n.random.gamma(100., 1./100., (batchD, self._K))
-    #         Elogtheta = dirichlet_expectation(gamma)
-    #         expElogtheta = n.exp(Elogtheta)
-
-    #         sstats = n.zeros(self._lambda.shape)
-    #         # Now, for each document d update that document's gamma and phi
-    #         it = 0
-    #         meanchange = 0
-    #         for d in range(0, batchD):
-    #             # These are mostly just shorthand (but might help cache locality)
-    #             ids = wordids[d]
-    #             cts = wordcts[d]
-    #             gammad = gamma[d, :]
-    #             Elogthetad = Elogtheta[d, :]
-    #             expElogthetad = expElogtheta[d, :]
-    #             expElogbetad = self._expElogbeta[:, ids]
-    #             # The optimal phi_{dwk} is proportional to
-    #             # expElogthetad_k * expElogbetad_w. phinorm is the normalizer.
-    #             phinorm = n.dot(expElogthetad, expElogbetad) + 1e-100
-    #             # Iterate between gamma and phi until convergence
-    #             for it in range(0, 100):
-    #                 lastgamma = gammad
-    #                 # We represent phi implicitly to save memory and time.
-    #                 # Substituting the value of the optimal phi back into
-    #                 # the update for gamma gives this update. Cf. Lee&Seung 2001.
-    #                 gammad = self._alpha + expElogthetad * \
-    #                     n.dot(cts / phinorm, expElogbetad.T)
-    #                 Elogthetad = dirichlet_expectation(gammad)
-    #                 expElogthetad = n.exp(Elogthetad)
-    #                 phinorm = n.dot(expElogthetad, expElogbetad) + 1e-100
-    #                 # If gamma hasn't changed much, we're done.
-    #                 meanchange = n.mean(abs(gammad - lastgamma))
-    #                 if (meanchange < meanchangethresh):
-    #                     break
-    #             gamma[d, :] = gammad
-    #             # Contribution of document d to the expected sufficient
-    #             # statistics for the M step.
-    #             sstats[:, ids] += n.outer(expElogthetad.T, cts/phinorm)
-
-    #         # This step finishes computing the sufficient statistics for the
-    #         # M step, so that
-    #         # sstats[k, w] = \sum_d n_{dw} * phi_{dwk}
-    #         # = \sum_d n_{dw} * exp{Elogtheta_{dk} + Elogbeta_{kw}} / phinorm_{dw}.
-    #         sstats = sstats * self._expElogbeta
-
-    #         return((gamma, sstats))
-
     def update_lambda_docs(self, docs, iter=50):
         """
         First does an E step on the mini-batch given in wordids and
@@ -304,7 +248,7 @@ class OnlineLDA:
         self._expElogbeta = n.exp(self._Elogbeta)
 
         self._updatect += 1
-        #bound = self.approx_bound_docs(docs, gamma)
+        # bound = self.approx_bound_docs(docs, gamma)
         return (gamma, bound)
 
     def update_lambda(self, wordids, wordcts):
@@ -378,11 +322,6 @@ class OnlineLDA:
                 tmax = max(temp)
                 phinorm[i] = n.log(sum(n.exp(temp - tmax))) + tmax
             score += n.sum(cts * phinorm)
-        # oldphinorm = phinorm
-        #             phinorm = n.dot(expElogtheta[d, :], self._expElogbeta[:, ids])
-        #             print oldphinorm
-        #             print n.log(phinorm)
-        #             score += n.sum(cts * n.log(phinorm))
 
         # E[log p(theta | alpha) - log q(theta | gamma)]
         score += n.sum((self._alpha - gamma) * Elogtheta)
@@ -460,7 +399,6 @@ class OnlineLDA:
 
 
 def classification_lda(K, data=NewsDataset(), perform_class=True, train_index=None, test_index=None):
-
     if train_index is None:
         doc_set_train = data.doc_set_train
         y_train_full = list(data.y_train)
@@ -490,7 +428,7 @@ def classification_lda(K, data=NewsDataset(), perform_class=True, train_index=No
                   % (i + 1, bound, perplexity))
             break
         old_log_likelihood = bound
-        #print('iteration = %d: perplexity estimate = %f' % (i, perplexity))
+        # print('iteration = %d: perplexity estimate = %f' % (i, perplexity))
 
     gamma_test, bound = lda.update_lambda_docs(list(filter(None, doc_set_test)))
     word_ids, word_cts = parse_doc_list(doc_set_test, lda._vocab)
@@ -566,7 +504,7 @@ def perplexity_lda(K, dataset, train_sizes, random_state=10):
                       % (i + 1, bound, perplexity))
                 break
             old_log_likelihood = bound
-            #print('iteration = %d: perplexity estimate = %f' % (i, perplexity))
+            # print('iteration = %d: perplexity estimate = %f' % (i, perplexity))
 
         perplexities_tr.append(perplexity)
         gamma_test, bound_test = lda.update_lambda_docs(list(filter(None, data.doc_set_test)))
