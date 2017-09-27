@@ -3,21 +3,16 @@ import time
 from scipy.special import psi, gammaln
 from scipy.misc import logsumexp
 import scipy as sp
-from src.variational_bayes_ctm.ctm import CTM
-
-def compute_dirichlet_expectation(dirichlet_parameter):
-    if len(dirichlet_parameter.shape) == 1:
-        return psi(dirichlet_parameter) - psi(np.sum(dirichlet_parameter))
-    return psi(dirichlet_parameter) - psi(np.sum(dirichlet_parameter, 1))[:, np.newaxis]
+from src.variational_bayes_ctm.ctm import CTM, compute_dirichlet_expectation
 
 
 class CTM_CVI(CTM):
-
     def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None,
                  scipy_optimization_method="L-BFGS-B", em_max_iter=100, em_convergence=1e-03, local_param_iter=50,
                  step_size=0.7):
         super().__init__(corpus=corpus, vocab=vocab, number_of_topics=number_of_topics, alpha_mu=alpha_mu,
-                         alpha_sigma=alpha_sigma, alpha_beta=alpha_beta, scipy_optimization_method=scipy_optimization_method,
+                         alpha_sigma=alpha_sigma, alpha_beta=alpha_beta,
+                         scipy_optimization_method=scipy_optimization_method,
                          em_max_iter=em_max_iter, em_convergence=em_convergence, local_param_iter=local_param_iter)
         self.step_size = step_size
 
@@ -52,31 +47,6 @@ class CTM_CVI(CTM):
 
         return new_doc_lambda, new_doc_nu_square, new_doc_nat_param_1, new_doc_nat_param_2
 
-    def m_step(self, phi_suff_stats):
-        # compute the beta terms
-        topic_log_likelihood = self._number_of_topics * \
-                               (sp.special.gammaln(np.sum(self._alpha_beta)) - np.sum(gammaln(self._alpha_beta)))
-        # compute the eta terms
-        topic_log_likelihood += np.sum(np.sum(gammaln(self._eta), axis=1) - gammaln(np.sum(self._eta, axis=1)))
-        self._eta = phi_suff_stats + self._alpha_beta
-        return topic_log_likelihood
-
-    def em_step(self):
-        self._counter += 1
-        clock_e_step = time.process_time()
-        document_log_likelihood, phi_sufficient_statistics = self.e_step()
-        clock_e_step = time.process_time() - clock_e_step
-
-        clock_m_step = time.process_time()
-        topic_log_likelihood = self.m_step(phi_sufficient_statistics)
-        clock_m_step = time.process_time() - clock_m_step
-
-        joint_log_likelihood = document_log_likelihood + topic_log_likelihood
-        # print(" E step  of iteration %d finished in %g seconds " % (self._counter, clock_e_step))
-        # print(" M step of iteration %d finished in %g seconds" % (self._counter, clock_e_step))
-        total_time = clock_e_step + clock_m_step
-        return joint_log_likelihood[0][0], total_time
-
     def e_step(self, corpus=None):
 
         if corpus is None:
@@ -108,7 +78,7 @@ class CTM_CVI(CTM):
 
         # iterate over all documents
         for doc_id in range(number_of_documents):  # np.random.permutation
-            #print("Document", doc_id)
+            # print("Document", doc_id)
             # initialize gamma for this document
             doc_lambda = lambda_values[doc_id, :]
             doc_nu_square = nu_square_values[doc_id, :]
@@ -127,8 +97,8 @@ class CTM_CVI(CTM):
 
             for local_parameter_iteration_index in range(self._local_param_iter):
                 # update phi in close form
-                #cvi
-                #add kappa update
+                # cvi
+                # add kappa update
 
                 log_phi = E_log_eta[:, term_ids] + doc_lambda[:, np.newaxis]
                 log_phi -= logsumexp(log_phi, axis=0)[np.newaxis, :]
@@ -161,7 +131,6 @@ class CTM_CVI(CTM):
                 doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
                 doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
-
             if self._diagonal_covariance_matrix:
                 document_log_likelihood -= 0.5 * np.sum(np.log(self._alpha_sigma))
                 document_log_likelihood -= 0.5 * np.sum(doc_nu_square / self._alpha_sigma)
@@ -184,17 +153,18 @@ class CTM_CVI(CTM):
             document_log_likelihood += 0.5 * np.sum(np.log(doc_nu_square))
 
             document_log_likelihood -= np.sum(np.exp(log_phi) * log_phi * term_counts)
-            #print('\t document-log-likelihood: %.4f' % document_log_likelihood)
+
             if corpus is not None:
                 # compute the phi terms
                 words_log_likelihood += np.sum(np.exp(log_phi + np.log(term_counts)) * E_log_prob_eta[:, term_ids])
 
-            # all terms including E_q[p(\eta | \beta)], i.e., terms involving \Psi(\eta), are cancelled due to \eta updates in M-step
+            # all terms including E_q[p(\eta | \beta)], i.e. terms involving \Psi(\eta)
+            # are cancelled due to \eta updates in M-step
 
             lambda_values[doc_id, :] = doc_lambda
             nu_square_values[doc_id, :] = doc_nu_square
 
-            #CVI
+            # CVI
             nat_param_1_values[doc_id, :] = doc_nat_param_1
             nat_param_2_values[doc_id, :] = doc_nat_param_2
 
@@ -211,15 +181,14 @@ class CTM_CVI(CTM):
         word_cts = self._parsed_corpus[1]
         normalizer = sum([np.sum(a) for a in word_cts])
         old_log_likelihood = np.finfo(np.float32).min
-        old_perplexity = old_log_likelihood/normalizer
         convergences = list()
         for i in range(self._em_max_iter):
-            log_likelihood, time = self.em_step()
+            log_likelihood, time = super().em_step()
             perplexity = log_likelihood / normalizer
             convergence = np.abs((log_likelihood - old_log_likelihood) / old_log_likelihood)
             convergences.append(convergence)
-            if len(convergences) >= 1:
-                av_conv = np.mean(np.asarray(convergences[-1:]))
+            if len(convergences) >= 2:
+                av_conv = np.mean(np.asarray(convergences[-2:]))
             else:
                 av_conv = np.mean(np.asarray(convergences))
             if av_conv < self._em_convergence:
@@ -254,7 +223,7 @@ class CTM_CVI(CTM):
         times = list()
 
         for i in range(self._em_max_iter):
-            log_likelihood, time = self.em_step()
+            log_likelihood, time = super().em_step()
             perplexity = log_likelihood / normalizer
             convergence = np.abs((log_likelihood - old_log_likelihood) / old_log_likelihood)
             times.append(time)
@@ -270,19 +239,3 @@ class CTM_CVI(CTM):
                                                                                   perplexity_test))
 
         return lls_train, lls_test, times
-
-    def export_beta(self, exp_beta_path, top_display=-1):
-        output = open(exp_beta_path, 'w')
-        E_log_eta = compute_dirichlet_expectation(self._eta)
-        for topic_index in range(self._number_of_topics):
-            output.write("==========\t%d\t==========\n" % (topic_index))
-            beta_probability = np.exp(E_log_eta[topic_index, :] - sp.misc.logsumexp(E_log_eta[topic_index, :]))
-            i = 0
-            for type_index in reversed(np.argsort(beta_probability)):
-                i += 1
-                output.write("%s\t%g\n" % (self._index_to_type[type_index], beta_probability[type_index]))
-                if top_display > 0 and i >= top_display:
-                    break
-        output.close()
-
-

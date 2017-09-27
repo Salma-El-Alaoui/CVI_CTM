@@ -330,7 +330,8 @@ class CTM:
                 # compute the phi terms
                 words_log_likelihood += np.sum(np.exp(log_phi + np.log(term_counts)) * E_log_prob_eta[:, term_ids])
 
-            # all terms including E_q[p(\eta | \beta)], i.e., terms involving \Psi(\eta), are cancelled due to \eta updates in M-step
+            # all terms including E_q[p(\eta | \beta)], i.e., terms involving \Psi(\eta),
+            # are cancelled due to \eta updates in M-step
 
             lambda_values[doc_id, :] = doc_lambda
             nu_square_values[doc_id, :] = doc_nu_square
