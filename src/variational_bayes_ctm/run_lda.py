@@ -19,7 +19,7 @@
 import sys, re, time, string
 import numpy as n
 from scipy.special import gammaln, psi
-from corpus import ToyDataset, NewsDataset, ApDataset, DeNewsDataset, NipsDataset
+from src.variational_bayes_ctm.corpus import ToyDataset, NewsDataset, ApDataset, DeNewsDataset, NipsDataset
 from sklearn import svm
 
 meanchangethresh = 0.001
