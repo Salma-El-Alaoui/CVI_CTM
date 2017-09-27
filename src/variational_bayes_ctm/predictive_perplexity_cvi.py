@@ -24,7 +24,6 @@ def perplexity_ctm(train_sizes, dataset, number_topics, save=False, output_direc
         print("Test CVI: ", perplexities_te)
         np.savetxt(os.path.join(output_directory, str(number_topics)+'_log_perplexities_cvi_observed.txt'),
                    (train_sizes, np.asarray(perplexities_tr), np.asarray(perplexities_te)))
-
     return perplexities_tr, perplexities_te
 
 
