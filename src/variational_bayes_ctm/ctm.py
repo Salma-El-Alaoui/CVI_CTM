@@ -4,7 +4,6 @@ import time
 from scipy.special import psi, gammaln
 from scipy.misc import logsumexp
 import scipy as sp
-import os
 
 
 def compute_dirichlet_expectation(dirichlet_parameter):
@@ -88,10 +87,8 @@ class CTM:
             word_cts.append(np.array(list(document_word_dict.values()))[np.newaxis, :])
 
             doc_count += 1
-            #if doc_count % 10000 == 0:
-            #    print("Parsed %d Documents..." % doc_count)
 
-        print("Parsed %d Documents..." % (doc_count))
+        print("Parsed %d Documents..." % doc_count)
 
         return word_ids, word_cts
 
@@ -123,9 +120,9 @@ class CTM:
 
         exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis],
                                       axis=1)
-        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta);
+        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta)
 
-        function_doc_lambda = np.sum(sum_phi * doc_lambda);
+        function_doc_lambda = np.sum(sum_phi * doc_lambda)
 
         if self._diagonal_covariance_matrix:
             mean_adjustment = doc_lambda - self._alpha_mu
@@ -143,11 +140,10 @@ class CTM:
 
         exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis],
                                       axis=1)
-        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta);
-        assert exp_over_doc_zeta.shape == (self._number_of_topics,)
+        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta)
 
         if self._diagonal_covariance_matrix:
-            function_prime_doc_lambda = (self._alpha_mu - doc_lambda) / self._alpha_sigma;
+            function_prime_doc_lambda = (self._alpha_mu - doc_lambda) / self._alpha_sigma
         else:
             function_prime_doc_lambda = np.dot((self._alpha_mu - doc_lambda[np.newaxis, :]), self._alpha_sigma_inv)[0,
                                         :]
@@ -181,9 +177,9 @@ class CTM:
 
         exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis],
                                       axis=1)
-        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta);
+        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta)
 
-        function_doc_nu_square = 0.5 * np.sum(np.log(doc_nu_square));
+        function_doc_nu_square = 0.5 * np.sum(np.log(doc_nu_square))
 
         if self._diagonal_covariance_matrix:
             function_doc_nu_square += -0.5 * np.sum(doc_nu_square / self._alpha_sigma)
@@ -212,8 +208,6 @@ class CTM:
             function_prime_log_doc_nu_square = -0.5 * exp_log_doc_nu_square * np.diag(self._alpha_sigma_inv)
         function_prime_log_doc_nu_square += 0.5
         function_prime_log_doc_nu_square -= 0.5 * total_word_count * exp_over_doc_zeta * exp_log_doc_nu_square
-
-        assert function_prime_log_doc_nu_square.shape == (self._number_of_topics,)
 
         return np.asarray(-function_prime_log_doc_nu_square)
 
@@ -266,8 +260,8 @@ class CTM:
         phi_sufficient_statistics = np.zeros((self._number_of_topics, self._number_of_types))
 
         # initialize a D-by-K matrix lambda and nu_square values
-        lambda_values = np.zeros((number_of_documents, self._number_of_topics))  # + self._alpha_mu[np.newaxis, :];
-        nu_square_values = np.ones((number_of_documents, self._number_of_topics))  # + self._alpha_sigma[np.newaxis, :];
+        lambda_values = np.zeros((number_of_documents, self._number_of_topics))
+        nu_square_values = np.ones((number_of_documents, self._number_of_topics))
 
         # iterate over all documents
         for doc_id in range(number_of_documents):  # np.random.permutation
@@ -281,7 +275,7 @@ class CTM:
             doc_word_count = np.sum(word_cts[doc_id])
 
             # update zeta in close form
-            # doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square));
+            # doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square))
             doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
             doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
@@ -296,13 +290,13 @@ class CTM:
                 doc_lambda = self.optimize_doc_lambda(doc_lambda, arguments)
 
                 # update zeta in close form
-                # doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square));
+                # doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square))
                 doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
                 doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
                 # update nu_square
                 arguments = (doc_lambda, doc_zeta_factor, doc_word_count)
-                # doc_nu_square = self.optimize_doc_nu_square(doc_nu_square, arguments);
+                # doc_nu_square = self.optimize_doc_nu_square(doc_nu_square, arguments)
                 doc_nu_square = self.optimize_doc_nu_square_in_log_space(doc_nu_square, arguments)
 
                 # update zeta in close form
@@ -343,7 +337,7 @@ class CTM:
 
             phi_sufficient_statistics[:, term_ids] += np.exp(log_phi + np.log(term_counts))
 
-            #if (doc_id + 1) % 1000 == 0:
+            # if (doc_id + 1) % 1000 == 0:
             #    print("successfully processed %d documents..." % (doc_id + 1))
 
         if corpus is None:
@@ -423,5 +417,3 @@ class CTM:
                 if top_display > 0 and i >= top_display:
                     break
         output.close()
-
-

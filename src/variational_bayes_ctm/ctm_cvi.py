@@ -1,11 +1,9 @@
 import numpy as np
-import sys
 import time
 from scipy.special import psi, gammaln
 from scipy.misc import logsumexp
 import scipy as sp
-import os
-
+from src.variational_bayes_ctm.ctm import CTM
 
 def compute_dirichlet_expectation(dirichlet_parameter):
     if len(dirichlet_parameter.shape) == 1:
@@ -13,97 +11,15 @@ def compute_dirichlet_expectation(dirichlet_parameter):
     return psi(dirichlet_parameter) - psi(np.sum(dirichlet_parameter, 1))[:, np.newaxis]
 
 
-class CTM_CVI:
+class CTM_CVI(CTM):
+
     def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None,
-                 scipy_optimization_method="L-BFGS-B", em_max_iter=100, em_convergence=1e-03, step_size=0.7,
-                 local_param_iter=50):
-
-        self.parse_vocabulary(vocab)
-        # initialize the size of the vocabulary, i.e. total number of distinct tokens.
-        self._number_of_types = len(self._type_to_index)
-
-        self._corpus = corpus
-        self._parsed_corpus = self.parse_data()
-        # define the total number of document
-        self._number_of_documents = len(self._parsed_corpus[0])
-
+                 scipy_optimization_method="L-BFGS-B", em_max_iter=100, em_convergence=1e-03, local_param_iter=50,
+                 step_size=0.7):
+        super().__init__(corpus=corpus, vocab=vocab, number_of_topics=number_of_topics, alpha_mu=alpha_mu,
+                         alpha_sigma=alpha_sigma, alpha_beta=alpha_beta, scipy_optimization_method=scipy_optimization_method,
+                         em_max_iter=em_max_iter, em_convergence=em_convergence, local_param_iter=local_param_iter)
         self.step_size = step_size
-
-        # initialize the total number of topics.
-        self._number_of_topics = number_of_topics
-
-        if alpha_mu is None:
-            alpha_mu = 0
-        if alpha_sigma is None:
-            alpha_sigma = 1
-        if alpha_beta is None:
-            alpha_beta = 1 / self._number_of_topics
-
-        self._diagonal_covariance_matrix = False
-
-        if self._diagonal_covariance_matrix:
-            self._alpha_mu = np.zeros(self._number_of_topics) + alpha_mu
-            self._alpha_sigma = np.zeros(self._number_of_topics) + alpha_sigma
-        else:
-            self._alpha_mu = np.zeros((1, self._number_of_topics)) + alpha_mu
-            self._alpha_sigma = np.eye(self._number_of_topics) * alpha_sigma
-            self._alpha_sigma_inv = np.linalg.pinv(self._alpha_sigma)
-
-        self._alpha_beta = np.zeros(self._number_of_types) + alpha_beta
-
-        self.init_latent_vars()
-        self._counter = 0
-        self._scipy_optimization_method = scipy_optimization_method
-        self._em_max_iter = em_max_iter
-        self._em_convergence = em_convergence
-        self._local_param_iter = local_param_iter
-
-    def parse_vocabulary(self, vocab):
-        self._type_to_index = {}
-        self._index_to_type = {}
-        for word in set(vocab):
-            self._index_to_type[len(self._index_to_type)] = word
-            self._type_to_index[word] = len(self._type_to_index)
-        self._vocab = self._type_to_index.keys()
-
-    def parse_data(self, corpus=None):
-        if corpus is None:
-            corpus = self._corpus
-        doc_count = 0
-
-        word_ids = []
-        word_cts = []
-
-        for document_line in corpus:
-            document_word_dict = {}
-            for token in document_line.split():
-                if token not in self._type_to_index:
-                    continue
-                type_id = self._type_to_index[token]
-                if type_id not in document_word_dict:
-                    document_word_dict[type_id] = 0
-                document_word_dict[type_id] += 1
-
-            if len(document_word_dict) == 0:
-                continue
-
-            word_ids.append(np.array(list(document_word_dict.keys())))
-            word_cts.append(np.array(list(document_word_dict.values()))[np.newaxis, :])
-
-            doc_count += 1
-            #if doc_count % 10000 == 0:
-            #    print("Parsed %d Documents..." % doc_count)
-
-        print("Parsed %d Documents..." % (doc_count))
-
-        return word_ids, word_cts
-
-    def init_latent_vars(self):
-        # initialize a D-by-K matrix gamma
-        self._lambda = np.zeros((self._number_of_documents, self._number_of_topics))
-        self._nu_square = np.ones((self._number_of_documents, self._number_of_topics))
-        # initialize a V-by-K matrix beta, subject to the sum over every row is 1
-        self._eta = np.random.gamma(100., 0.01, (self._number_of_topics, self._number_of_types))
 
     def optimize_doc_lambda(self, doc_lambda, arguments):
 
@@ -434,7 +350,7 @@ class CTM_CVI:
         return log_likelihood, perplexity
 
     def predict(self, test_corpus):
-        parsed_corpus = self.parse_data(test_corpus)
+        parsed_corpus = super().parse_data(test_corpus)
         normalizer = sum([np.sum(a) for a in parsed_corpus[1]])
         clock_e_step = time.process_time()
         document_log_likelihood, lambda_values, nu_square_values = self.e_step(corpus=parsed_corpus)
@@ -444,7 +360,7 @@ class CTM_CVI:
         return document_log_likelihood, perplexity, lambda_values, nu_square_values
 
     def fit_predict(self, test_corpus):
-        parsed_corpus_test = self.parse_data(test_corpus)
+        parsed_corpus_test = super().parse_data(test_corpus)
         normalizer_test = sum([np.sum(a) for a in parsed_corpus_test[1]])
 
         word_cts = self._parsed_corpus[1]
