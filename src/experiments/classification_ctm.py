@@ -1,6 +1,5 @@
-from corpus import ToyDataset, NewsDataset
-from ctm import CTM
-# from sklearn.decomposition import LatentDirichletAllocation
+from src.variational_bayes_ctm.corpus import ToyDataset, NewsDataset
+from src.variational_bayes_ctm.ctm import CTM
 import numpy as np
 from sklearn import svm
 # from sklearn.preprocessing import label_binarize

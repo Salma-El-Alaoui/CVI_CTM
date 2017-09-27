@@ -1,5 +1,5 @@
-from corpus import ToyDataset, NewsDataset, ApDataset
-from ctm import CTM
+from src.variational_bayes_ctm.corpus import ToyDataset, NewsDataset, ApDataset
+from src.variational_bayes_ctm.ctm import CTM
 import numpy as np
 
 train_size = 0.99
