@@ -1,20 +1,8 @@
-# onlineldavb.py: Package of functions for fitting Latent Dirichlet
-# Allocation (LDA) with online variational Bayes (VB).
-#
-# Copyright (C) 2010  Matthew D. Hoffman
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+Variational Bayesian Inference for Latent Dirichlet Allocation
+This code was modified from the code originally written by Matthew Hoffman.
+Implements Variational Bayes for LDA as described in (Blei et al. 2003)
+"""
 
 import sys, re, time, string
 import numpy as n
@@ -144,7 +132,6 @@ class OnlineLDA:
         it = 0
         meanchange = 0
         for d in range(0, batchD):
-            # print(sum(wordcts[d]))
             # These are mostly just shorthand (but might help cache locality)
             ids = list(wordids[d])
             cts = list(wordcts[d])
@@ -536,16 +523,16 @@ def perplexity_lda_topics(topic_numbers, train_size, dataset):
 
 
 if __name__ == "__main__":
-    # d = ApDataset
-    # print("DATASET", d.__name__)
+    d = ApDataset
+    print("DATASET", d.__name__)
 
-    # k = 5
-    # train = n.linspace(0.1, 0.5, num=9)
-    # perplexity_lda(K=k, dataset=d, train_sizes=train)
+    k = 5
+    train = n.linspace(0.1, 0.5, num=9)
+    perplexity_lda(K=k, dataset=d, train_sizes=train)
 
-    # topics = [5, 8, 10, 15, 20, 25, 30, 35, 40]
-    # train_size = 0.9
-    # perplexity_lda_topics(topic_numbers=topics, train_size=train_size, dataset=d)
+    topics = [5, 8, 10, 15, 20, 25, 30, 35, 40]
+    train_size = 0.9
+    perplexity_lda_topics(topic_numbers=topics, train_size=train_size, dataset=d)
 
-    # classification_lda(K=15)
+    classification_lda(K=15)
     cross_validation(50)

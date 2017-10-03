@@ -1,5 +1,8 @@
+"""
+Stochastic Variational Inference for the Correlated Topic Model.
+"""
+
 import numpy as np
-import sys
 import time
 from scipy.special import psi, gammaln
 from scipy.misc import logsumexp
@@ -21,6 +24,10 @@ def gen_batches(n, batch_size):
 
 
 class CTM_CVI_S(CTM_CVI):
+    """
+    Implements Stochastic Variational Inference for the Correlated Topic Model
+    """
+
     def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None,
                  scipy_optimization_method="L-BFGS-B", em_max_iter=100, em_convergence=1e-03, step_size=0.7,
                  local_param_iter=50, batch_size=-1, learning_offset=10, learning_decay=0.7, evaluate_every=1):
@@ -34,8 +41,14 @@ class CTM_CVI_S(CTM_CVI):
         self._kappa = learning_decay
         self._evaluate_every = evaluate_every
 
-    def m_step_s(self, phi_suff_stats, batch_indexes):
+    """=================================================================================================================
+            E-step and M-step of the Variational Inference algorithm
+    ================================================================================================================="""
 
+    def m_step_s(self, phi_suff_stats, batch_indexes):
+        """
+        Stochastic M-step: update the variational parameter for topics using a mini-batch of documents
+        """
         word_ids = self._parsed_corpus[0]
         number_of_documents = len(word_ids)
         batch_size = len(batch_indexes)
@@ -52,6 +65,10 @@ class CTM_CVI_S(CTM_CVI):
         return topic_log_likelihood
 
     def em_step_s(self, batch_indexes):
+        """
+        Performs stochastic EM-update for one iteration using a mini-batch of documents
+        and compute the training log-likelihood
+        """
         self._counter += 1
         clock_e_step = time.process_time()
         document_log_likelihood, phi_sufficient_statistics = self.e_step(batch_indexes=batch_indexes, corpus=None)
@@ -68,7 +85,9 @@ class CTM_CVI_S(CTM_CVI):
         return joint_log_likelihood[0][0], total_time
 
     def e_step(self, batch_indexes=None, corpus=None):
-
+        """
+        E-step: update the variational parameters for topic proportions and topic assignments.
+        """
         if corpus is None:
             word_ids = self._parsed_corpus[0]
             word_cts = self._parsed_corpus[1]
@@ -92,8 +111,8 @@ class CTM_CVI_S(CTM_CVI):
         phi_sufficient_statistics = np.zeros((self._number_of_topics, self._number_of_types))
 
         # initialize a D-by-K matrix lambda and nu_square values
-        lambda_values = np.zeros((number_of_documents, self._number_of_topics))  # + self._alpha_mu[np.newaxis, :];
-        nu_square_values = np.ones((number_of_documents, self._number_of_topics))  # + self._alpha_sigma[np.newaxis, :];
+        lambda_values = np.zeros((number_of_documents, self._number_of_topics))
+        nu_square_values = np.ones((number_of_documents, self._number_of_topics))
         # CVI
         nat_param_1_values = np.zeros((number_of_documents, self._number_of_topics))
         nat_param_2_values = np.zeros((number_of_documents, self._number_of_topics))
@@ -117,26 +136,9 @@ class CTM_CVI_S(CTM_CVI):
             doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
             for local_parameter_iteration_index in range(self._local_param_iter):
-                # update phi in close form
+                # update phi in closed form
                 log_phi = E_log_eta[:, term_ids] + doc_lambda[:, np.newaxis]
                 log_phi -= logsumexp(log_phi, axis=0)[np.newaxis, :]
-
-                vb_updates = False
-                if vb_updates:
-                    # update lambda
-                    sum_phi = np.exp(logsumexp(log_phi + np.log(term_counts), axis=1))
-                    arguments = (doc_nu_square, doc_zeta_factor, sum_phi, doc_word_count)
-                    doc_lambda = super().optimize_doc_lambda(doc_lambda, arguments)
-
-                    # update zeta in close form
-                    # doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square));
-                    doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
-                    doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
-
-                    # update nu_square
-                    arguments = (doc_lambda, doc_zeta_factor, doc_word_count)
-                    # doc_nu_square = self.optimize_doc_nu_square(doc_nu_square, arguments);
-                    doc_nu_square = super().optimize_doc_nu_square_in_log_space(doc_nu_square, arguments)
 
                 # CVI
                 # update lambda and nu square
@@ -145,7 +147,7 @@ class CTM_CVI_S(CTM_CVI):
                 doc_lambda, doc_nu_square, doc_nat_param_1, doc_nat_param_2 = \
                     super().cvi_gaussian_update(doc_lambda, doc_nu_square, doc_nat_param_1, doc_nat_param_2, *arguments)
 
-                # update zeta in close form
+                # update zeta in closed form
                 doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
                 doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
@@ -154,8 +156,6 @@ class CTM_CVI_S(CTM_CVI):
                 document_log_likelihood -= 0.5 * np.sum(doc_nu_square / self._alpha_sigma)
                 document_log_likelihood -= 0.5 * np.sum((doc_lambda - self._alpha_mu) ** 2 / self._alpha_sigma)
             else:
-                # TODO : replace logdet
-                # TODO : replace by EPS
                 document_log_likelihood -= 0.5 * np.log(np.linalg.det(self._alpha_sigma) + 1e-30)
                 document_log_likelihood -= 0.5 * np.sum(doc_nu_square * np.diag(self._alpha_sigma_inv))
                 document_log_likelihood -= 0.5 * np.dot(
@@ -171,6 +171,7 @@ class CTM_CVI_S(CTM_CVI):
             document_log_likelihood += 0.5 * np.sum(np.log(doc_nu_square))
 
             document_log_likelihood -= np.sum(np.exp(log_phi) * log_phi * term_counts)
+
             # print('\t document-log-likelihood: %.4f' % document_log_likelihood)
             if corpus is not None:
                 # compute the phi terms
@@ -196,7 +197,14 @@ class CTM_CVI_S(CTM_CVI):
         else:
             return words_log_likelihood, lambda_values, nu_square_values
 
+    """=================================================================================================================
+        Training and testing
+    ================================================================================================================="""
+
     def fit(self):
+        """
+        Performs EM-update until reaching target average change in the log-likelihood
+        """
         word_cts = self._parsed_corpus[1]
         word_ids = self._parsed_corpus[0]
         normalizer = sum([np.sum(a) for a in word_cts])
@@ -211,7 +219,7 @@ class CTM_CVI_S(CTM_CVI):
 
         for i in range(self._em_max_iter):
             for docs_idx in gen_batches(number_of_documents, batch_size):
-                log_likelihood, time = self.em_step(batch_indexes=docs_idx)
+                log_likelihood, time = self.em_step_s(batch_indexes=docs_idx)
                 perplexity = log_likelihood / normalizer
                 convergence = np.abs((log_likelihood - old_log_likelihood) / old_log_likelihood)
                 convergences.append(convergence)
@@ -219,7 +227,7 @@ class CTM_CVI_S(CTM_CVI):
                     av_conv = np.mean(np.asarray(convergences[-1:]))
                 else:
                     av_conv = np.mean(np.asarray(convergences))
-                if convergence < self._em_convergence:
+                if av_conv < self._em_convergence:
                     print('Converged after %d epochs, final log-likelihood: %.4f, final perplexity: %.4f'
                           % (i + 1, log_likelihood, perplexity))
                     break
@@ -229,6 +237,10 @@ class CTM_CVI_S(CTM_CVI):
         return log_likelihood, perplexity
 
     def predict(self, test_corpus):
+        """
+        Performs E-step on test corpus using stored topics obtained by training
+        Computes the average heldout log-likelihood
+        """
         parsed_corpus = super().parse_data(test_corpus)
         normalizer = sum([np.sum(a) for a in parsed_corpus[1]])
         clock_e_step = time.process_time()
@@ -239,6 +251,10 @@ class CTM_CVI_S(CTM_CVI):
         return document_log_likelihood, perplexity, lambda_values, nu_square_values
 
     def fit_predict(self, test_corpus):
+        """
+        Computes the heldout-log likelihood on the test corpus after "evaluate_every" iterations
+        (mini-batches) of training.
+        """
         parsed_corpus_test = super().parse_data(test_corpus)
         normalizer_test = sum([np.sum(a) for a in parsed_corpus_test[1]])
 
@@ -262,14 +278,13 @@ class CTM_CVI_S(CTM_CVI):
             epoch_test = list()
             batches = gen_batches(number_of_documents, batch_size)
             nb_mini_batches = len(batches)
-            print("debug", nb_mini_batches)
             for i, docs_idx in enumerate(batches):
                 log_likelihood, time = self.em_step_s(batch_indexes=docs_idx)
                 perplexity = log_likelihood / normalizer
                 convergence = np.abs((log_likelihood - old_log_likelihood) / old_log_likelihood)
                 convergences.append(convergence)
                 old_log_likelihood = log_likelihood
-                print('pass: %d / %d, log-likelihood: %.4f, log-perplexity: %.4f, convergence: %.4f'
+                print('mini-batch: %d / %d, log-likelihood: %.4f, log-perplexity: %.4f, convergence: %.4f'
                       % (i + 1, nb_mini_batches, log_likelihood, perplexity, convergence))
                 epoch_train.append(perplexity)
                 if (i + 1) % self._evaluate_every == 0 and (i + 1) != nb_mini_batches:
@@ -282,10 +297,9 @@ class CTM_CVI_S(CTM_CVI):
             document_log_likelihood_test, _, _ = self.e_step(corpus=parsed_corpus_test)
             perplexity_test = document_log_likelihood_test / normalizer_test
             epoch_test.append(perplexity_test)
-            print(
-                'heldout log-likelihood full pass: %.4f, heldout log-perplexity: %.4f' % (document_log_likelihood_test,
-                                                                                          perplexity_test))
-            print("debug", len(epoch_test))
+            print('heldout log-likelihood full pass for epoch %d : %.4f, heldout log-perplexity: %.4f'
+                  % ((epoch + 1), document_log_likelihood_test, perplexity_test))
             lls_train.append(epoch_train)
             lls_test.append(epoch_test)
+
         return lls_train, lls_test

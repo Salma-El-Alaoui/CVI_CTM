@@ -1,5 +1,10 @@
+"""
+Batch Variational Inference for the Correlated Topic Model
+This code was modified from the code originally written by Ke Zhai.
+Implements the Variational Inference algorithm for CTM as described in (Blei and Lafferty, 2007)
+"""
+
 import numpy as np
-import sys
 import time
 from scipy.special import psi, gammaln
 from scipy.misc import logsumexp
@@ -13,6 +18,10 @@ def compute_dirichlet_expectation(dirichlet_parameter):
 
 
 class CTM:
+    """
+    Implements the Variational Inference algorithm for CTM as described in (Blei and Lafferty, 2007)
+    """
+
     def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None,
                  scipy_optimization_method="L-BFGS-B", em_max_iter=100, em_convergence=1e-03, local_param_iter=50):
 
@@ -98,6 +107,10 @@ class CTM:
         self._nu_square = np.ones((self._number_of_documents, self._number_of_topics))
         # initialize a V-by-K matrix beta, subject to the sum over every row is 1
         self._eta = np.random.gamma(100., 0.01, (self._number_of_topics, self._number_of_types))
+
+    """=================================================================================================================
+    Helpers for optimization of the mean and variance of topic proportions
+    ================================================================================================================="""
 
     def optimize_doc_lambda(self, doc_lambda, arguments):
 
@@ -211,7 +224,14 @@ class CTM:
 
         return np.asarray(-function_prime_log_doc_nu_square)
 
+    """=================================================================================================================
+        E-step and M-step of the Variational Inference algorithm
+    ================================================================================================================="""
+
     def m_step(self, phi_suff_stats):
+        """
+        M-step: update the variational parameter for topics
+        """
         # compute the beta terms
         topic_log_likelihood = self._number_of_topics * \
                                (sp.special.gammaln(np.sum(self._alpha_beta)) - np.sum(gammaln(self._alpha_beta)))
@@ -222,6 +242,9 @@ class CTM:
         return topic_log_likelihood
 
     def em_step(self):
+        """
+        Perform EM-update for one iteration and compute the training log-likelihood
+        """
         self._counter += 1
         clock_e_step = time.process_time()
         document_log_likelihood, phi_sufficient_statistics = self.e_step()
@@ -238,7 +261,9 @@ class CTM:
         return joint_log_likelihood[0][0], total_time
 
     def e_step(self, corpus=None):
-
+        """
+        E-step: update the variational parameters for topic proportions and topic assignments.
+        """
         if corpus is None:
             word_ids = self._parsed_corpus[0]
             word_cts = self._parsed_corpus[1]
@@ -308,8 +333,6 @@ class CTM:
                 document_log_likelihood -= 0.5 * np.sum(doc_nu_square / self._alpha_sigma)
                 document_log_likelihood -= 0.5 * np.sum((doc_lambda - self._alpha_mu) ** 2 / self._alpha_sigma)
             else:
-                # TODO : replace logdet
-                # TODO : replace by EPS
                 document_log_likelihood -= 0.5 * np.log(np.linalg.det(self._alpha_sigma) + 1e-30)
                 document_log_likelihood -= 0.5 * np.sum(doc_nu_square * np.diag(self._alpha_sigma_inv))
                 document_log_likelihood -= 0.5 * np.dot(
@@ -338,9 +361,6 @@ class CTM:
 
             phi_sufficient_statistics[:, term_ids] += np.exp(log_phi + np.log(term_counts))
 
-            # if (doc_id + 1) % 1000 == 0:
-            #    print("successfully processed %d documents..." % (doc_id + 1))
-
         if corpus is None:
             self._lambda = lambda_values
             self._nu_square = nu_square_values
@@ -348,7 +368,14 @@ class CTM:
         else:
             return words_log_likelihood, lambda_values, nu_square_values
 
+    """=================================================================================================================
+        Training and testing
+    ================================================================================================================="""
+
     def fit(self):
+        """
+        Performs EM-update until reaching target average change in the log-likelihood
+        """
         word_cts = self._parsed_corpus[1]
         normalizer = sum([np.sum(a) for a in word_cts])
         old_log_likelihood = np.finfo(np.float32).min
@@ -366,6 +393,10 @@ class CTM:
         return log_likelihood, perplexity
 
     def predict(self, test_corpus):
+        """
+        Performs E-step on test corpus using stored topics obtained by training
+        Computes the average heldout log-likelihood
+        """
         parsed_corpus = self.parse_data(test_corpus)
         normalizer = sum([np.sum(a) for a in parsed_corpus[1]])
         clock_e_step = time.time()
@@ -376,6 +407,9 @@ class CTM:
         return document_log_likelihood, perplexity, lambda_values, nu_square_values
 
     def fit_predict(self, test_corpus):
+        """
+        Computes the heldout-log likelihood on the test corpus after every iteration of training.
+        """
         parsed_corpus_test = self.parse_data(test_corpus)
         normalizer_test = sum([np.sum(a) for a in parsed_corpus_test[1]])
 
@@ -406,6 +440,9 @@ class CTM:
         return lls_train, lls_test, times
 
     def export_beta(self, exp_beta_path, top_display=-1):
+        """
+        Writes the "top_display" more likely words in each topic and their probability
+        """
         output = open(exp_beta_path, 'w')
         E_log_eta = compute_dirichlet_expectation(self._eta)
         for topic_index in range(self._number_of_topics):

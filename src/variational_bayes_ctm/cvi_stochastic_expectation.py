@@ -1,7 +1,3 @@
-"""
-Conjugate-Computation Variational Inference for the Correlated Topic Model.
-"""
-
 import numpy as np
 import time
 from scipy.misc import logsumexp
@@ -9,43 +5,48 @@ import scipy as sp
 from src.variational_bayes_ctm.ctm import CTM, compute_dirichlet_expectation
 
 
-class CTM_CVI(CTM):
-    """
-    Implements the Conjugate-Computation Variational Inference for the Correlated Topic Model.
-    """
+class CTM_CVI_SE(CTM):
 
     def __init__(self, corpus, vocab, number_of_topics, alpha_mu=None, alpha_sigma=None, alpha_beta=None,
                  scipy_optimization_method="L-BFGS-B", em_max_iter=100, em_convergence=1e-03, local_param_iter=50,
-                 step_size=0.7):
+                 step_size=0.7, nb_samples=50000):
         super().__init__(corpus=corpus, vocab=vocab, number_of_topics=number_of_topics, alpha_mu=alpha_mu,
                          alpha_sigma=alpha_sigma, alpha_beta=alpha_beta,
                          scipy_optimization_method=scipy_optimization_method,
                          em_max_iter=em_max_iter, em_convergence=em_convergence, local_param_iter=local_param_iter)
         self.step_size = step_size
-
-    """=================================================================================================================
-        CVI update for the variational parameter of topic proportions
-    ================================================================================================================="""
+        self._nb_samples = nb_samples
 
     def cvi_gaussian_update(self, doc_lambda, doc_nu_square, doc_nat_param_1, doc_nat_param_2, *args):
 
+        print("lambda: ", doc_lambda, "nu_square: ", doc_nu_square)
+
         (doc_zeta_factor, sum_phi, total_word_count, step_size) = args
+
+        # sample from the gaussian:
+        nu_square_matrix = np.diag(doc_nu_square)
+        samples = np.random.multivariate_normal(doc_lambda, nu_square_matrix, self._nb_samples)
+        grad_expec_lambda = np.zeros(self._number_of_topics)
+        grad_expec_nu = np.zeros(self._number_of_topics)
+
+        for s in samples:
+            lsumexp = logsumexp(s)
+            grad_expec_lambda += lsumexp * (s - doc_lambda) / doc_nu_square
+            grad_expec_nu += lsumexp * (1 / (2 * doc_nu_square) + ((s - doc_lambda)**2) / (2 * doc_nu_square**2))
+
+        grad_expec_mean_1 = sum_phi - total_word_count / self._nb_samples * grad_expec_lambda +\
+                                2 * total_word_count * grad_expec_nu * doc_lambda
+        grad_expec_mean_2 = -total_word_count * grad_expec_nu / self._nb_samples
 
         if self._diagonal_covariance_matrix:
             nat_param_1 = self._alpha_mu / self._alpha_sigma
-        else:
-            nat_param_1 = np.dot(self._alpha_mu, self._alpha_sigma_inv)[0, :]
-        nat_param_1 += sum_phi
-
-        exp_over_doc_zeta = logsumexp(doc_zeta_factor - doc_lambda[:, np.newaxis] - 0.5 * doc_nu_square[:, np.newaxis],
-                                      axis=1)
-        exp_over_doc_zeta = np.exp(-exp_over_doc_zeta)
-
-        if self._diagonal_covariance_matrix:
             nat_param_2 = -0.5 * 1 / self._alpha_sigma
         else:
+            nat_param_1 = np.dot(self._alpha_mu, self._alpha_sigma_inv)[0, :]
             nat_param_2 = -0.5 * np.diag(self._alpha_sigma_inv)
-        nat_param_2 -= total_word_count * exp_over_doc_zeta
+
+        nat_param_1 += grad_expec_mean_1
+        nat_param_2 += grad_expec_mean_2
 
         assert nat_param_1.shape == (self._number_of_topics,)
         assert nat_param_2.shape == (self._number_of_topics,)
@@ -58,14 +59,8 @@ class CTM_CVI(CTM):
 
         return new_doc_lambda, new_doc_nu_square, new_doc_nat_param_1, new_doc_nat_param_2
 
-    """=================================================================================================================
-            E-step and M-step of the Variational Inference algorithm
-    ================================================================================================================="""
-
     def e_step(self, corpus=None):
-        """
-        E-step: update the variational parameters for topic proportions and topic assignments.
-        """
+
         if corpus is None:
             word_ids = self._parsed_corpus[0]
             word_cts = self._parsed_corpus[1]
@@ -87,8 +82,8 @@ class CTM_CVI(CTM):
         phi_sufficient_statistics = np.zeros((self._number_of_topics, self._number_of_types))
 
         # initialize a D-by-K matrix lambda and nu_square values
-        lambda_values = np.zeros((number_of_documents, self._number_of_topics))
-        nu_square_values = np.ones((number_of_documents, self._number_of_topics))
+        lambda_values = np.zeros((number_of_documents, self._number_of_topics))  # + self._alpha_mu[np.newaxis, :];
+        nu_square_values = np.ones((number_of_documents, self._number_of_topics))  # + self._alpha_sigma[np.newaxis, :];
         # CVI
         nat_param_1_values = np.zeros((number_of_documents, self._number_of_topics))
         nat_param_2_values = np.zeros((number_of_documents, self._number_of_topics))
@@ -113,9 +108,26 @@ class CTM_CVI(CTM):
             doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
             for local_parameter_iteration_index in range(self._local_param_iter):
-                # update phi in closed form
+                # update phi in close form
                 log_phi = E_log_eta[:, term_ids] + doc_lambda[:, np.newaxis]
                 log_phi -= logsumexp(log_phi, axis=0)[np.newaxis, :]
+
+                vb_updates = False
+                if vb_updates:
+                    # update lambda
+                    sum_phi = np.exp(logsumexp(log_phi + np.log(term_counts), axis=1))
+                    arguments = (doc_nu_square, doc_zeta_factor, sum_phi, doc_word_count)
+                    doc_lambda = super().optimize_doc_lambda(doc_lambda, arguments)
+
+                    # update zeta in close form
+                    # doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square))
+                    doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
+                    doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
+
+                    # update nu_square
+                    arguments = (doc_lambda, doc_zeta_factor, doc_word_count)
+                    # doc_nu_square = self.optimize_doc_nu_square(doc_nu_square, arguments)
+                    doc_nu_square = super().optimize_doc_nu_square_in_log_space(doc_nu_square, arguments)
 
                 # CVI
                 # update lambda and nu square
@@ -124,7 +136,7 @@ class CTM_CVI(CTM):
                 doc_lambda, doc_nu_square, doc_nat_param_1, doc_nat_param_2 = \
                     self.cvi_gaussian_update(doc_lambda, doc_nu_square, doc_nat_param_1, doc_nat_param_2, *arguments)
 
-                # update zeta in closed form
+                # update zeta in close form
                 doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
                 doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))
 
@@ -133,6 +145,8 @@ class CTM_CVI(CTM):
                 document_log_likelihood -= 0.5 * np.sum(doc_nu_square / self._alpha_sigma)
                 document_log_likelihood -= 0.5 * np.sum((doc_lambda - self._alpha_mu) ** 2 / self._alpha_sigma)
             else:
+                # TODO : replace logdet
+                # TODO : replace by EPS
                 document_log_likelihood -= 0.5 * np.log(np.linalg.det(self._alpha_sigma) + 1e-30)
                 document_log_likelihood -= 0.5 * np.sum(doc_nu_square * np.diag(self._alpha_sigma_inv))
                 document_log_likelihood -= 0.5 * np.dot(
@@ -172,14 +186,7 @@ class CTM_CVI(CTM):
         else:
             return words_log_likelihood, lambda_values, nu_square_values
 
-    """=================================================================================================================
-            Training and testing
-    ================================================================================================================="""
-
     def fit(self):
-        """
-        Performs EM-update until reaching target average change in the log-likelihood
-        """
         word_cts = self._parsed_corpus[1]
         normalizer = sum([np.sum(a) for a in word_cts])
         old_log_likelihood = np.finfo(np.float32).min
@@ -203,10 +210,6 @@ class CTM_CVI(CTM):
         return log_likelihood, perplexity
 
     def predict(self, test_corpus):
-        """
-        Performs E-step on test corpus using stored topics obtained by training
-        Computes the average heldout log-likelihood
-        """
         parsed_corpus = super().parse_data(test_corpus)
         normalizer = sum([np.sum(a) for a in parsed_corpus[1]])
         clock_e_step = time.process_time()
@@ -217,9 +220,6 @@ class CTM_CVI(CTM):
         return document_log_likelihood, perplexity, lambda_values, nu_square_values
 
     def fit_predict(self, test_corpus):
-        """
-        Computes the heldout-log likelihood on the test corpus after every iteration of training.
-        """
         parsed_corpus_test = super().parse_data(test_corpus)
         normalizer_test = sum([np.sum(a) for a in parsed_corpus_test[1]])
 
