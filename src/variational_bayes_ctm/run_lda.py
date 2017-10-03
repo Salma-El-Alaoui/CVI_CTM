@@ -483,7 +483,7 @@ def perplexity_lda(K, dataset, train_sizes, random_state=10):
         for i in range(max_iterations):
             gamma_train, bound = lda.update_lambda_docs(list(filter(None, data.doc_set_train)))
             word_ids, word_cts = parse_doc_list(data.doc_set_train, lda._vocab)
-            # estimate perpexity with the current batch
+            # estimate training perplexity with the current batch
             perplexity = bound / sum(map(sum, word_cts))
             convergence = n.abs((bound - old_log_likelihood) / old_log_likelihood)
             if convergence < 1e-03:

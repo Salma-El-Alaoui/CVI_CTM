@@ -110,97 +110,7 @@ def plot_convergence_iterations(stoch, batch, models, nb_documents, batch_size):
     plt.show()
 
 
-def results_lda_ctm(classification=True, ll_nb_topics=False, ll_per_train=False):
-    if classification:
-        models = ["CTM", "LDA"]
-
-        # ======================= Classification Accuracy single split ======================#
-        # ===================================================================================#
-
-        accuracy_ctm = [0.22, 0.44, 0.49, 0.49, 0.51, 0.5, 0.49]
-
-        accuracy_lda = [0.22, 0.34, 0.35, 0.37, 0.38, 0.37, 0.33]
-
-        # ======================= Classification Accuracy with CV ======================#
-        # ==============================================================================#
-
-        print("20Newsgroups dataset")
-        topics = [20, 25, 30, 35, 40, 45, 50, 60]
-        mean_lda = [0.31, 0.36, 0.37, 0.36, 0.38, 0.35, 0.36, 0.36]
-        sd_lda = [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.02]
-        mean_ctm = [0.46, 0.48, 0.47, 0.47, 0.49, 0.49, 0.50, 0.49]
-        sd_ctm = [0.01, 0.01, 0.01, 0.02, 0.01, 0.01, 0.001, 0.01]
-        plot_accuracy_topics(topics, [mean_ctm, mean_lda], [sd_ctm, sd_lda], models)
-
-    if ll_nb_topics:
-        # ======================= PP = f(number of topics) ======================#
-        # ========================================================================#
-
-        models = ["CTM_CVI", "CTM", "LDA"]
-
-        # de-news
-        print("De-News dataset")
-        topics = [5, 8, 10, 15, 20, 25, 30, 35, 40]
-        ctm = [-7.580532598474275296e+00, - 7.560194590903261513e+00, - 7.602279183259960327e+00,
-               - 7.659581682628681776e+00,
-               - 6.253641959965173136e+00, - 6.184206010213144644e+00, - 6.114064321088665821e+00,
-               - 6.122649375861390908e+00,
-               - 6.058106228010641914e+00]
-        lda = [-8.8657684869019189, -8.7491414829973504, -8.710538809781859, -8.6274111055055052, -8.4553626107178843,
-               -8.3483223863977596,
-               -8.2882130177387552, -8.1883907740478463, -8.1036552427066066]
-        cvi = [-7.6892, -7.5974, -7.5417, -7.1740874522508324, -6.2740794017267962, -6.1054090344680256,
-               -6.3753498789361069, -6.0971858211621948, -6.0607233944469527]
-
-        plot_pp_topics(topics, [cvi, ctm, lda], models)
-
-    if ll_per_train:
-        models = ["CTM_CVI", "CTM", "LDA"]
-
-        # ======================= PP = f(%train) =======================#
-        # ===============================================================#
-
-        # 20-news
-        print("20Newsgroups dataset")
-        train_sizes = np.asarray([0.1, 0.15, 0.2, 0.25, 0.3, 0.35])
-        ctm = [-9.031582651321196309e+00, -8.953745962642818412e+00, -8.679029202735506487e+00,
-               -8.676770626309597390e+00,
-               -8.463241156409551991e+00,
-               -8.486064399501110245e+00]
-        lda = [-10.749882566493323, -10.520613243129059, -10.32215594830998, -10.220704600022529, -10.124963194939893,
-               -10.152993505602398]
-        cvi = [-8.4172610442327436, -8.3530458734511708, -8.2275314264144388, -8.209207969427224, -8.245440111487369,
-               -8.2011908800972328]
-
-        plot_pp_train_per(train_sizes, [cvi, ctm, lda], models)
-
-        # AP
-        print("AP dataset")
-        train_sizes = np.asarray([0.1, 0.15, 0.2, 0.25, 0.3, 0.35])
-        ctm = [-7.355208321568674990e+00, -7.163444725373114608e+00, -7.047840999666488138e+00,
-               -6.983631773165615897e+00,
-               -6.937004033542123693e+00, -6.905019013962870069e+00]
-        lda = [-8.7584331340407999, -8.5154937999609537, -8.3409690529532696, -8.2689974257455017, -8.206393353288794,
-               -8.1696335750536662]
-
-        cvi = [-6.7205426707492899, -6.6474289718167352, -6.6257758124872215, -6.6452026874455035,
-               -6.6387637283509617, -6.6344638234716716]
-
-        plot_pp_train_per(train_sizes, [cvi, ctm, lda], models)
-
-        # de-News
-        print("De-News dataset")
-        train_sizes = np.asarray([0.1, 0.15, 0.2, 0.25, 0.3, 0.35])
-        ctm = [-7.003100397218386064e+00, - 6.801027884843848348e+00, - 6.745441049493919650e+00,
-               - 6.711361331697173860e+00, - 6.666628685362040230e+00, - 6.638640527042508843e+00]
-        lda = [-8.5389442537837681, -8.3443683270632167, -8.203670290639911, -8.1095499115967389,
-               -8.0948734577283794, -8.0804914558436565]
-        cvi = [-6.6330647105098199, -6.5400816920048941, -6.5472609428130628, -6.5824695252972445,
-               -6.5595797793645891, -6.5117585633776809]
-        plot_pp_train_per(train_sizes, [cvi, ctm, lda], models)
-
-
-def results_ctm(de_news=True, plt_epochs=False, plt_iterations=True, plt_conv_time=False):
+def results_cvi(de_news=True, plt_epochs=False, plt_iterations=True, plt_conv_time=False):
     if de_news:
         print("De-News dataset")
         results_directory = "../../results/de-news"
@@ -249,8 +159,5 @@ def results_ctm(de_news=True, plt_epochs=False, plt_iterations=True, plt_conv_ti
 
 
 if __name__ == "__main__":
-    # Comparison between LDA and CTM
-    # results_lda_ctm(classification=False, ll_nb_topics=False, ll_per_train=True)
-
     # Comparison between CTM, CVI and stochastic CVI
-    results_ctm(de_news=True, plt_epochs=False, plt_iterations=True, plt_conv_time=False)
+    results_cvi(de_news=True, plt_epochs=False, plt_iterations=True, plt_conv_time=False)

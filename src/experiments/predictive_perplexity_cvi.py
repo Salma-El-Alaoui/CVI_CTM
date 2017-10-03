@@ -13,7 +13,7 @@ def perplexity_ctm(train_sizes, dataset, number_topics, save=False, output_direc
         data = dataset(train_size=size)
         print("===============Observed words==============", size)
         ctm = CTM_CVI(corpus=data.doc_set_train, vocab=data.vocabulary, number_of_topics=number_topics, step_size=0.7,
-                      local_param_iter=10, em_convergence=1e-03)
+                      local_param_iter=30, em_convergence=1e-03)
         _, perplexity = ctm.fit()
         _, heldout_perplexity, _, _ = ctm.predict(test_corpus=data.doc_set_test)
         perplexities_tr.append(perplexity)

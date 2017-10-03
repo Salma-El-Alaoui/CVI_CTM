@@ -314,7 +314,7 @@ class CTM:
                 arguments = (doc_nu_square, doc_zeta_factor, sum_phi, doc_word_count)
                 doc_lambda = self.optimize_doc_lambda(doc_lambda, arguments)
 
-                # update zeta in close form
+                # update zeta in closed form
                 # doc_zeta = np.sum(np.exp(doc_lambda+0.5*doc_nu_square))
                 doc_zeta_factor = doc_lambda + 0.5 * doc_nu_square
                 doc_zeta_factor = np.tile(doc_zeta_factor, (self._number_of_topics, 1))

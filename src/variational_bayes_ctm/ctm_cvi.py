@@ -189,8 +189,8 @@ class CTM_CVI(CTM):
             perplexity = log_likelihood / normalizer
             convergence = np.abs((log_likelihood - old_log_likelihood) / old_log_likelihood)
             convergences.append(convergence)
-            if len(convergences) >= 2:
-                av_conv = np.mean(np.asarray(convergences[-2:]))
+            if len(convergences) >= 1:
+                av_conv = np.mean(np.asarray(convergences[-1:]))
             else:
                 av_conv = np.mean(np.asarray(convergences))
             if av_conv < self._em_convergence:
